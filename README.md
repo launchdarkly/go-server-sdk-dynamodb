@@ -51,6 +51,10 @@ The LaunchDarkly SDK has a standard caching mechanism for any persistent data st
     ).CacheMinutes(5)
 ```
 
+## Data size limitation
+
+DynamoDB does not support storing values greater than 400KB (or slightly less, since that number includes the size of the column metadata). Therefore, this integration will not work if the JSON representation of any feature flag or user segment (in the same format that is used by the LaunchDarkly SDK service endpoint, `https://app.launchdarkly.com/latest-all`) exceeds that size.
+
 ## LaunchDarkly overview
 
 [LaunchDarkly](https://www.launchdarkly.com) is a feature management platform that serves over 100 billion feature flags daily to help teams build better software, faster. [Get started](https://docs.launchdarkly.com/docs/getting-started) using LaunchDarkly today!
