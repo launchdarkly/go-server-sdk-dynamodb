@@ -5,6 +5,8 @@
 //
 // To use the DynamoDB data store with the LaunchDarkly client:
 //
+//     import lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb"
+//
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(lddynamodb.DataStore("my-table-name")),
 //     }
@@ -31,7 +33,7 @@
 // all database integrations.
 //
 // If you are also using DynamoDB for other purposes, the data store can coexist with
-// other data as long as you are not using the same keys. By default, the keys used by the
-// data store will always start with "launchdarkly:"; you can change this to another
-// prefix if desired.
+// other data in the same table as long as you use the Prefix option to make each application
+// use different keys. However, it is advisable to configure separate tables in DynamoDB, for
+// better control over permissions and throughput.
 package lddynamodb
