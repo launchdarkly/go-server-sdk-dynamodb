@@ -6,7 +6,7 @@ This library provides a [DynamoDB](https://aws.amazon.com/dynamodb/)-backed pers
 
 This version of the library requires at least version 5.0.0 of the LaunchDarkly Go SDK. In earlier Go SDK versions, the `lddynamodb` package was built into the SDK (`gopkg.in/launchdarkly/go-server-sdk.v4/lddynamodb`).
 
-The minimum Go version is 1.13.
+The minimum Go version is 1.14.
 
 For more information, see also: [Using a persistent feature store](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store).
 
