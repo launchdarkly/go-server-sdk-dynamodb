@@ -1,5 +1,7 @@
 template:
   name: go
+  skip:
+    - test  # tests require DynamoDB - run them only in CI
 
 publications:
   - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb
