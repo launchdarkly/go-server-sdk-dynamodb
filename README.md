@@ -10,10 +10,6 @@ The minimum Go version is 1.14.
 
 For more information, see also: [Using a persistent feature store](https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store).
 
-## This is prerelease code
-
-This project is currently in beta. The full 1.0.0 release will be done when Go SDK 5.0.0 is released.
-
 ## Quick setup
 
 This assumes that you have already installed the LaunchDarkly Go SDK.
