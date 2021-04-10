@@ -4,15 +4,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/stretchr/testify/assert"
-
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataSourceBuilder(t *testing.T) {
@@ -64,6 +64,10 @@ func TestDataSourceBuilder(t *testing.T) {
 		ds, err := DataStore("").CreatePersistentDataStore(simpleTestContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
+
+		bs, err := DataStore("").CreateBigSegmentStore(simpleTestContext{})
+		assert.Error(t, err)
+		assert.Nil(t, bs)
 	})
 
 	t.Run("error for invalid configuration", func(t *testing.T) {
@@ -73,6 +77,15 @@ func TestDataSourceBuilder(t *testing.T) {
 		ds, err := DataStore("t").CreatePersistentDataStore(simpleTestContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
+
+		bs, err := DataStore("t").CreateBigSegmentStore(simpleTestContext{})
+		assert.Error(t, err)
+		assert.Nil(t, bs)
+	})
+
+	t.Run("diagnostic description", func(t *testing.T) {
+		value := DataStore("").DescribeConfiguration()
+		assert.Equal(t, ldvalue.String("DynamoDB"), value)
 	})
 }
 
