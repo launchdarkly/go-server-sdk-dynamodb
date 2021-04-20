@@ -1,19 +1,29 @@
 package lddynamodb
 
 import (
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 )
 
 // DataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
 //
-// Obtain an instance of this type by calling DataStore(). After calling its methods to specify any
-// desired custom settings, wrap it in a PersistentDataStoreBuilder by calling
-// ldcomponents.PersistentDataStore(), and then store this in the SDK configuration's DataStore field.
+// This can be used either for the main data store that holds feature flag data, or for the big
+// segment store, or both. If you are using both, they do not have to have the same parameters. For
+// instance, in this example the main data store uses the table "table1" and the big segment store
+// uses the table "table2":
+//
+//     config.DataStore = ldcomponents.PersistentDataStore(
+//         lddynamodb.DataStore("table1"))
+//     config.BigSegments = ldcomponents.BigSegments(
+//         lddynamodb.DataStore("table2"))
+//
+// Note that the builder is passed to one of two methods, PersistentDataStore or BigSegments,
+// depending on the context in which it is being used. This is because each of those contexts has
+// its own additional configuration options that are unrelated to the DynamoDB options.
 //
 // Builder calls can be chained, for example:
 //
@@ -69,11 +79,22 @@ func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBui
 	return b
 }
 
-// CreatePersistentDataStore is called internally by the SDK to create the data store implementation object.
+// CreatePersistentDataStore is called internally by the SDK to create a data store implementation object.
 func (b *DataStoreBuilder) CreatePersistentDataStore(
 	context interfaces.ClientContext,
 ) (interfaces.PersistentDataStore, error) {
 	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().GetLoggers())
+	return store, err
+}
+
+// CreateBigSegmentStore is called internally by the SDK to create a data store implementation object.
+func (b *DataStoreBuilder) CreateBigSegmentStore(
+	context interfaces.ClientContext,
+) (interfaces.BigSegmentStore, error) {
+	store, err := newDynamoDBBigSegmentStoreImpl(b, context.GetLogging().GetLoggers())
+	if err != nil {
+		return nil, err
+	}
 	return store, err
 }
 

@@ -35,14 +35,14 @@ import (
 	"math"
 	"strconv"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
-
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
 )
 
 const (
@@ -72,8 +72,13 @@ func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) 
 		return nil, errors.New("table name is required")
 	}
 
+	client, err := makeClient(builder)
+	if err != nil {
+		return nil, err
+	}
+
 	store := &dynamoDBDataStore{
-		client:  builder.client,
+		client:  client,
 		table:   builder.table,
 		prefix:  builder.prefix,
 		loggers: loggers, // copied by value so we can modify it
@@ -81,15 +86,18 @@ func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) 
 	store.loggers.SetPrefix("DynamoDBDataStore:")
 	store.loggers.Infof(`Using DynamoDB table %s`, store.table)
 
-	if store.client == nil {
-		sess, err := session.NewSessionWithOptions(builder.sessionOptions)
-		if err != nil {
-			return nil, fmt.Errorf("unable to configure DynamoDB client: %s", err)
-		}
-		store.client = dynamodb.New(sess, builder.configs...)
-	}
-
 	return store, nil
+}
+
+func makeClient(builder *DataStoreBuilder) (dynamodbiface.DynamoDBAPI, error) {
+	if builder.client != nil {
+		return builder.client, nil
+	}
+	sess, err := session.NewSessionWithOptions(builder.sessionOptions)
+	if err != nil {
+		return nil, fmt.Errorf("unable to configure DynamoDB client: %s", err)
+	}
+	return dynamodb.New(sess, builder.configs...), nil
 }
 
 func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection) error {
