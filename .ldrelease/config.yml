@@ -1,7 +1,12 @@
-template:
-  name: go
-  skip:
-    - test  # tests require DynamoDB - run them only in CI
+version: 2
+
+jobs:
+  - docker:
+      image: golang:1.14-buster
+    template:
+      name: go
+      skip:
+        - test  # CI tests require a database
 
 publications:
   - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb
