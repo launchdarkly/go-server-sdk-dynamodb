@@ -1,7 +1,7 @@
 // Package lddynamodb provides a DynamoDB-backed persistent data store for the LaunchDarkly Go SDK.
 //
 // For more details about how and why you can use a persistent data store, see:
-// https://docs.launchdarkly.com/v2.0/docs/using-a-persistent-feature-store
+// https://docs.launchdarkly.com/sdk/features/storing-data/dynamodb#go
 //
 // To use the DynamoDB data store with the LaunchDarkly client:
 //
