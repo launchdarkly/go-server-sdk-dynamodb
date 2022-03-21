@@ -4,7 +4,7 @@
 
 This library provides a [DynamoDB](https://aws.amazon.com/dynamodb/)-backed persistence mechanism (data store) for the [LaunchDarkly Go SDK](https://github.com/launchdarkly/go-server-sdk), replacing the default in-memory data store.
 
-This version of the library requires at least version 5.3.0 of the LaunchDarkly Go SDK. In Go SDK versions prior to 5.0.0, the `lddynamodb` package was built into the SDK (`gopkg.in/launchdarkly/go-server-sdk.v4/lddynamodb`).
+This version of the library requires at least version 6.0.0 of the LaunchDarkly Go SDK. In Go SDK versions prior to 6.0.0, the `lddynamodb` package was built into the SDK (`gopkg.in/launchdarkly/go-server-sdk.v4/lddynamodb`).
 
 The minimum Go version is 1.16.
 
