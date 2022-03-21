@@ -1,6 +1,6 @@
-module github.com/launchdarkly/go-server-sdk-dynamodb
+module github.com/launchdarkly/go-server-sdk-dynamodb/v2
 
-go 1.13
+go 1.16
 
 require (
 	github.com/aws/aws-sdk-go v1.37.2
