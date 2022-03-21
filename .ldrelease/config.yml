@@ -8,6 +8,10 @@ jobs:
       skip:
         - test  # CI tests require a database
 
+branches:
+  - name: v2
+  - name: v1
+
 publications:
-  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb
+  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v2
     description: documentation

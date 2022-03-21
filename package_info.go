@@ -5,7 +5,7 @@
 //
 // To use the DynamoDB data store with the LaunchDarkly client:
 //
-//     import lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb"
+//     import lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb/v2"
 //
 //     config := ld.Config{
 //         DataStore: ldcomponents.PersistentDataStore(lddynamodb.DataStore("my-table-name")),
