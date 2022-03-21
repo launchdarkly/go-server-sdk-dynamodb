@@ -4,10 +4,10 @@ import (
 	"errors"
 	"strconv"
 
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
-	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
-	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
+	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
+	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -83,15 +83,15 @@ func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (interfaces.BigSegmentSt
 	}, nil
 }
 
-func (store *dynamoDBBigSegmentStoreImpl) GetUserMembership(
-	userHashKey string,
+func (store *dynamoDBBigSegmentStoreImpl) GetMembership(
+	contextHashKey string,
 ) (interfaces.BigSegmentMembership, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
 		Key: map[string]*dynamodb.AttributeValue{
 			tablePartitionKey: {S: aws.String(prefixedNamespace(store.prefix, bigSegmentsUserDataKey))},
-			tableSortKey:      {S: aws.String(userHashKey)},
+			tableSortKey:      {S: aws.String(contextHashKey)},
 		},
 	})
 	if err != nil {
