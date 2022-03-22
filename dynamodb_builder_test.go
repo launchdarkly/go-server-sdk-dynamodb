@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
+	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -61,11 +60,11 @@ func TestDataSourceBuilder(t *testing.T) {
 	})
 
 	t.Run("error for empty table name", func(t *testing.T) {
-		ds, err := DataStore("").CreatePersistentDataStore(simpleTestContext{})
+		ds, err := DataStore("").CreatePersistentDataStore(testhelpers.NewSimpleClientContext(""))
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
-		bs, err := DataStore("").CreateBigSegmentStore(simpleTestContext{})
+		bs, err := DataStore("").CreateBigSegmentStore(testhelpers.NewSimpleClientContext(""))
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})
@@ -74,11 +73,11 @@ func TestDataSourceBuilder(t *testing.T) {
 		os.Setenv("AWS_CA_BUNDLE", "not a real CA file")
 		defer os.Setenv("AWS_CA_BUNDLE", "")
 
-		ds, err := DataStore("t").CreatePersistentDataStore(simpleTestContext{})
+		ds, err := DataStore("t").CreatePersistentDataStore(testhelpers.NewSimpleClientContext(""))
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
-		bs, err := DataStore("t").CreateBigSegmentStore(simpleTestContext{})
+		bs, err := DataStore("t").CreateBigSegmentStore(testhelpers.NewSimpleClientContext(""))
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})
@@ -87,20 +86,4 @@ func TestDataSourceBuilder(t *testing.T) {
 		value := DataStore("").DescribeConfiguration()
 		assert.Equal(t, ldvalue.String("DynamoDB"), value)
 	})
-}
-
-// stub implementation of interfaces.ClientContext
-type simpleTestContext struct{}
-
-func (c simpleTestContext) GetBasic() interfaces.BasicConfiguration {
-	return interfaces.BasicConfiguration{}
-}
-
-func (c simpleTestContext) GetHTTP() interfaces.HTTPConfiguration {
-	return nil
-}
-
-func (c simpleTestContext) GetLogging() interfaces.LoggingConfiguration {
-	lc, _ := ldcomponents.Logging().CreateLoggingConfiguration(interfaces.BasicConfiguration{})
-	return lc
 }

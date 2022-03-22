@@ -83,7 +83,7 @@ func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBui
 func (b *DataStoreBuilder) CreatePersistentDataStore(
 	context interfaces.ClientContext,
 ) (interfaces.PersistentDataStore, error) {
-	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().GetLoggers())
+	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().Loggers)
 	return store, err
 }
 
@@ -91,7 +91,7 @@ func (b *DataStoreBuilder) CreatePersistentDataStore(
 func (b *DataStoreBuilder) CreateBigSegmentStore(
 	context interfaces.ClientContext,
 ) (interfaces.BigSegmentStore, error) {
-	store, err := newDynamoDBBigSegmentStoreImpl(b, context.GetLogging().GetLoggers())
+	store, err := newDynamoDBBigSegmentStoreImpl(b, context.GetLogging().Loggers)
 	if err != nil {
 		return nil, err
 	}
