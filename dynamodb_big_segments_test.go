@@ -23,9 +23,9 @@ func TestBigSegmentStore(t *testing.T) {
 	setTestMetadata := func(prefix string, metadata interfaces.BigSegmentStoreMetadata) error {
 		key := prefixedNamespace(prefix, bigSegmentsMetadataKey)
 		item := map[string]*dynamodb.AttributeValue{
-			tablePartitionKey:       &dynamodb.AttributeValue{S: aws.String(key)},
-			tableSortKey:            &dynamodb.AttributeValue{S: aws.String(key)},
-			bigSegmentsSyncTimeAttr: &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(int(metadata.LastUpToDate)))},
+			tablePartitionKey:       {S: aws.String(key)},
+			tableSortKey:            {S: aws.String(key)},
+			bigSegmentsSyncTimeAttr: {N: aws.String(strconv.Itoa(int(metadata.LastUpToDate)))},
 		}
 		_, err := client.PutItem(&dynamodb.PutItemInput{
 			TableName: aws.String(testTableName),
@@ -38,12 +38,12 @@ func TestBigSegmentStore(t *testing.T) {
 		_, err := client.UpdateItem(&dynamodb.UpdateItemInput{
 			TableName: aws.String(testTableName),
 			Key: map[string]*dynamodb.AttributeValue{
-				tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(prefixedNamespace(prefix, bigSegmentsUserDataKey))},
-				tableSortKey:      &dynamodb.AttributeValue{S: aws.String(userHashKey)},
+				tablePartitionKey: {S: aws.String(prefixedNamespace(prefix, bigSegmentsUserDataKey))},
+				tableSortKey:      {S: aws.String(userHashKey)},
 			},
 			UpdateExpression: aws.String(fmt.Sprintf("ADD %s :value", attrName)),
 			ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-				":value": &dynamodb.AttributeValue{SS: []*string{aws.String(value)}},
+				":value": {SS: []*string{aws.String(value)}},
 			},
 		})
 		return err

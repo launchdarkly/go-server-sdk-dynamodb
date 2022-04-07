@@ -6,7 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
+	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
+	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces/ldstoretypes"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
+	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/storetest"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -14,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/launchdarkly/go-test-helpers/v2/jsonhelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +39,143 @@ func TestDynamoDBDataStore(t *testing.T) {
 		ErrorStoreFactory(makeFailedStore(), verifyFailedStoreError).
 		ConcurrentModificationHook(setConcurrentModificationHook).
 		Run(t)
+}
+
+func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
+	require.NoError(t, createTableIfNecessary())
+
+	makeGoodData := func() []ldstoretypes.SerializedCollection {
+		return []ldstoretypes.SerializedCollection{
+			{
+				Kind: ldstoreimpl.Features(),
+				Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+					{
+						Key: "flag1",
+						Item: ldstoretypes.SerializedItemDescriptor{
+							Version: 1, SerializedItem: []byte(`{"key": "flag1", "version": 1}`),
+						},
+					},
+					{
+						Key: "flag2",
+						Item: ldstoretypes.SerializedItemDescriptor{
+							Version: 1, SerializedItem: []byte(`{"key": "flag2", "version": 1}`),
+						},
+					},
+				},
+			},
+			{
+				Kind: ldstoreimpl.Segments(),
+				Items: []ldstoretypes.KeyedSerializedItemDescriptor{
+					{
+						Key: "segment1",
+						Item: ldstoretypes.SerializedItemDescriptor{
+							Version: 1, SerializedItem: []byte(`{"key": "segment1", "version": 1}`),
+						},
+					},
+					{
+						Key: "segment2",
+						Item: ldstoretypes.SerializedItemDescriptor{
+							Version:        1,
+							SerializedItem: []byte(`{"key": "segment2", "version": 1}`),
+						},
+					},
+				},
+			},
+		}
+	}
+
+	makeBigKeyList := func() []string {
+		var ret []string
+		for i := 0; i < 40000; i++ {
+			ret = append(ret, fmt.Sprintf("key%d", i))
+		}
+		require.Greater(t, len(jsonhelpers.ToJSON(ret)), 400*1024)
+		return ret
+	}
+
+	badItemKey := "baditem"
+	tooBigFlag := ldbuilders.NewFlagBuilder(badItemKey).Version(1).
+		AddTarget(0, makeBigKeyList()...).Build()
+	tooBigSegment := ldbuilders.NewSegmentBuilder(badItemKey).Version(1).
+		Included(makeBigKeyList()...).Build()
+
+	kindParams := []struct {
+		name      string
+		dataKind  ldstoretypes.DataKind
+		collIndex int
+		item      ldstoretypes.SerializedItemDescriptor
+	}{
+		{"flags", ldstoreimpl.Features(), 0, ldstoretypes.SerializedItemDescriptor{
+			Version:        tooBigFlag.Version,
+			SerializedItem: jsonhelpers.ToJSON(tooBigFlag),
+		}},
+		{"segments", ldstoreimpl.Segments(), 1, ldstoretypes.SerializedItemDescriptor{
+			Version:        tooBigSegment.Version,
+			SerializedItem: jsonhelpers.ToJSON(tooBigSegment),
+		}},
+	}
+
+	getAllData := func(t *testing.T, store interfaces.PersistentDataStore) []ldstoretypes.SerializedCollection {
+		flags, err := store.GetAll(ldstoreimpl.Features())
+		require.NoError(t, err)
+		segments, err := store.GetAll(ldstoreimpl.Segments())
+		require.NoError(t, err)
+		return []ldstoretypes.SerializedCollection{
+			{Kind: ldstoreimpl.Features(), Items: flags},
+			{Kind: ldstoreimpl.Segments(), Items: segments},
+		}
+	}
+
+	t.Run("init", func(t *testing.T) {
+		for _, params := range kindParams {
+			t.Run(params.name, func(t *testing.T) {
+				mockLog := ldlogtest.NewMockLog()
+				ctx := testhelpers.NewSimpleClientContext("").WithLogging(ldcomponents.Logging().Loggers(mockLog.Loggers))
+				store, err := makeTestStore("").CreatePersistentDataStore(ctx)
+				require.NoError(t, err)
+				defer store.Close()
+
+				dataPlusBadItem := makeGoodData()
+				collection := dataPlusBadItem[params.collIndex]
+				collection.Items = append(
+					// put the bad item first to prove that items after that one are still stored
+					[]ldstoretypes.KeyedSerializedItemDescriptor{
+						{Key: badItemKey, Item: params.item},
+					},
+					collection.Items...,
+				)
+				dataPlusBadItem[params.collIndex] = collection
+
+				require.NoError(t, store.Init(dataPlusBadItem))
+
+				mockLog.AssertMessageMatch(t, true, ldlog.Error, "was too large to store in DynamoDB and was dropped")
+
+				assert.Equal(t, makeGoodData(), getAllData(t, store))
+			})
+		}
+	})
+
+	t.Run("upsert", func(t *testing.T) {
+		for _, params := range kindParams {
+			t.Run(params.name, func(t *testing.T) {
+				mockLog := ldlogtest.NewMockLog()
+				ctx := testhelpers.NewSimpleClientContext("").WithLogging(ldcomponents.Logging().Loggers(mockLog.Loggers))
+				store, err := makeTestStore("").CreatePersistentDataStore(ctx)
+				require.NoError(t, err)
+				defer store.Close()
+
+				goodData := makeGoodData()
+				require.NoError(t, store.Init(goodData))
+
+				updated, err := store.Upsert(params.dataKind, badItemKey, params.item)
+				assert.False(t, updated)
+				assert.NoError(t, err)
+				mockLog.AssertMessageMatch(t, true, ldlog.Error, "was too large to store in DynamoDB and was dropped")
+
+				assert.Equal(t, goodData, getAllData(t, store))
+			})
+		}
+	})
 }
 
 func baseBuilder() *DataStoreBuilder {
@@ -125,21 +270,21 @@ func createTableIfNecessary() error {
 	}
 	createParams := dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
-			&dynamodb.AttributeDefinition{
+			{
 				AttributeName: aws.String(tablePartitionKey),
 				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
 			},
-			&dynamodb.AttributeDefinition{
+			{
 				AttributeName: aws.String(tableSortKey),
 				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
 			},
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
-			&dynamodb.KeySchemaElement{
+			{
 				AttributeName: aws.String(tablePartitionKey),
 				KeyType:       aws.String(dynamodb.KeyTypeHash),
 			},
-			&dynamodb.KeySchemaElement{
+			{
 				AttributeName: aws.String(tableSortKey),
 				KeyType:       aws.String(dynamodb.KeyTypeRange),
 			},
