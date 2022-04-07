@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/launchdarkly/go-test-helpers/v2/jsonhelpers"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlogtest"
 	"gopkg.in/launchdarkly/go-server-sdk-evaluation.v1/ldbuilders"
@@ -21,7 +22,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/launchdarkly/go-test-helpers/v2/jsonhelpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
