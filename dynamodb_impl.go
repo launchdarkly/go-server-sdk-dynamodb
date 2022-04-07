@@ -51,6 +51,11 @@ const (
 	tableSortKey      = "key"
 	versionAttribute  = "version"
 	itemJSONAttribute = "item"
+
+	// We won't try to store items whose total size exceeds this. The DynamoDB documentation says
+	// only "400KB", which probably means 400*1024, but to avoid any chance of trying to store a
+	// too-large item we are rounding it down.
+	dynamoDbMaxItemSize = 400000
 )
 
 type namespaceAndKey struct {
@@ -114,6 +119,9 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 	for _, coll := range allData {
 		for _, item := range coll.Items {
 			av := store.encodeItem(coll.Kind, item.Key, item.Item)
+			if !store.checkSizeLimit(av) {
+				continue
+			}
 			requests = append(requests, &dynamodb.WriteRequest{
 				PutRequest: &dynamodb.PutRequest{Item: av},
 			})
@@ -128,8 +136,8 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 	for k, v := range unusedOldKeys {
 		if v && k.namespace != initedKey {
 			delKey := map[string]*dynamodb.AttributeValue{
-				tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(k.namespace)},
-				tableSortKey:      &dynamodb.AttributeValue{S: aws.String(k.key)},
+				tablePartitionKey: {S: aws.String(k.namespace)},
+				tableSortKey:      {S: aws.String(k.key)},
 			}
 			requests = append(requests, &dynamodb.WriteRequest{
 				DeleteRequest: &dynamodb.DeleteRequest{Key: delKey},
@@ -139,8 +147,8 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 
 	// Now set the special key that we check in InitializedInternal()
 	initedItem := map[string]*dynamodb.AttributeValue{
-		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(initedKey)},
-		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(initedKey)},
+		tablePartitionKey: {S: aws.String(initedKey)},
+		tableSortKey:      {S: aws.String(initedKey)},
 	}
 	requests = append(requests, &dynamodb.WriteRequest{
 		PutRequest: &dynamodb.PutRequest{Item: initedItem},
@@ -228,6 +236,9 @@ func (store *dynamoDBDataStore) Upsert(
 	newItem ldstoretypes.SerializedItemDescriptor,
 ) (bool, error) {
 	av := store.encodeItem(kind, key, newItem)
+	if !store.checkSizeLimit(av) {
+		return false, nil
+	}
 
 	if store.testUpdateHook != nil {
 		store.testUpdateHook()
@@ -247,7 +258,7 @@ func (store *dynamoDBDataStore) Upsert(
 			"#version":   aws.String(versionAttribute),
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-			":version": &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(newItem.Version))},
+			":version": {N: aws.String(strconv.Itoa(newItem.Version))},
 		},
 	})
 	if err != nil {
@@ -389,9 +400,28 @@ func (store *dynamoDBDataStore) encodeItem(
 	item ldstoretypes.SerializedItemDescriptor,
 ) map[string]*dynamodb.AttributeValue {
 	return map[string]*dynamodb.AttributeValue{
-		tablePartitionKey: &dynamodb.AttributeValue{S: aws.String(store.namespaceForKind(kind))},
-		tableSortKey:      &dynamodb.AttributeValue{S: aws.String(key)},
-		versionAttribute:  &dynamodb.AttributeValue{N: aws.String(strconv.Itoa(item.Version))},
-		itemJSONAttribute: &dynamodb.AttributeValue{S: aws.String(string(item.SerializedItem))},
+		tablePartitionKey: {S: aws.String(store.namespaceForKind(kind))},
+		tableSortKey:      {S: aws.String(key)},
+		versionAttribute:  {N: aws.String(strconv.Itoa(item.Version))},
+		itemJSONAttribute: {S: aws.String(string(item.SerializedItem))},
 	}
+}
+
+func (store *dynamoDBDataStore) checkSizeLimit(item map[string]*dynamodb.AttributeValue) bool {
+	// see: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/CapacityUnitCalculations.html
+	size := 100 // fixed overhead for index data
+	for key, value := range item {
+		size += len(key)
+		if value.S != nil {
+			size += len(*value.S) // note, len returns UTF8 byte length, which is what we want
+		} else if value.N != nil {
+			size += len(*value.N) // DynamoDB stores numbers as numeric strings
+		}
+	}
+	if size <= dynamoDbMaxItemSize {
+		return true
+	}
+	store.loggers.Errorf("The item %q in %q was too large to store in DynamoDB and was dropped",
+		*item[tablePartitionKey].S, *item[tableSortKey].S)
+	return false
 }
