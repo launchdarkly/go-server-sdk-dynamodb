@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -60,11 +60,11 @@ func TestDataSourceBuilder(t *testing.T) {
 	})
 
 	t.Run("error for empty table name", func(t *testing.T) {
-		ds, err := DataStore("").CreatePersistentDataStore(testhelpers.NewSimpleClientContext(""))
+		ds, err := DataStore("").CreatePersistentDataStore(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
-		bs, err := DataStore("").CreateBigSegmentStore(testhelpers.NewSimpleClientContext(""))
+		bs, err := DataStore("").CreateBigSegmentStore(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})
@@ -73,11 +73,11 @@ func TestDataSourceBuilder(t *testing.T) {
 		os.Setenv("AWS_CA_BUNDLE", "not a real CA file")
 		defer os.Setenv("AWS_CA_BUNDLE", "")
 
-		ds, err := DataStore("t").CreatePersistentDataStore(testhelpers.NewSimpleClientContext(""))
+		ds, err := DataStore("t").CreatePersistentDataStore(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
-		bs, err := DataStore("t").CreateBigSegmentStore(testhelpers.NewSimpleClientContext(""))
+		bs, err := DataStore("t").CreateBigSegmentStore(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})

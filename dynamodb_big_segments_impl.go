@@ -6,8 +6,8 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldtime"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -55,7 +55,7 @@ func newDynamoDBBigSegmentStoreImpl(
 	return store, nil
 }
 
-func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) {
+func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (subsystems.BigSegmentStoreMetadata, error) {
 	key := prefixedNamespace(store.prefix, bigSegmentsMetadataKey)
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
@@ -66,26 +66,26 @@ func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (interfaces.BigSegmentSt
 		},
 	})
 	if err != nil {
-		return interfaces.BigSegmentStoreMetadata{}, err // COVERAGE: can't cause this in unit tests
+		return subsystems.BigSegmentStoreMetadata{}, err // COVERAGE: can't cause this in unit tests
 	}
 	if len(result.Item) == 0 {
-		return interfaces.BigSegmentStoreMetadata{}, errors.New("timestamp not found")
+		return subsystems.BigSegmentStoreMetadata{}, errors.New("timestamp not found")
 	}
 
 	itemValue := result.Item[bigSegmentsSyncTimeAttr]
 	if itemValue == nil || itemValue.N == nil {
-		return interfaces.BigSegmentStoreMetadata{}, nil // COVERAGE: can't cause this in unit tests
+		return subsystems.BigSegmentStoreMetadata{}, nil // COVERAGE: can't cause this in unit tests
 	}
 	value, _ := strconv.Atoi(*itemValue.N)
 
-	return interfaces.BigSegmentStoreMetadata{
+	return subsystems.BigSegmentStoreMetadata{
 		LastUpToDate: ldtime.UnixMillisecondTime(value),
 	}, nil
 }
 
 func (store *dynamoDBBigSegmentStoreImpl) GetMembership(
 	contextHashKey string,
-) (interfaces.BigSegmentMembership, error) {
+) (subsystems.BigSegmentMembership, error) {
 	result, err := store.client.GetItem(&dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),

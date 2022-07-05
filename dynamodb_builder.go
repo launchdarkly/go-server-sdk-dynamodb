@@ -2,7 +2,7 @@ package lddynamodb
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -81,16 +81,16 @@ func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBui
 
 // CreatePersistentDataStore is called internally by the SDK to create a data store implementation object.
 func (b *DataStoreBuilder) CreatePersistentDataStore(
-	context interfaces.ClientContext,
-) (interfaces.PersistentDataStore, error) {
+	context subsystems.ClientContext,
+) (subsystems.PersistentDataStore, error) {
 	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().Loggers)
 	return store, err
 }
 
 // CreateBigSegmentStore is called internally by the SDK to create a data store implementation object.
 func (b *DataStoreBuilder) CreateBigSegmentStore(
-	context interfaces.ClientContext,
-) (interfaces.BigSegmentStore, error) {
+	context subsystems.ClientContext,
+) (subsystems.BigSegmentStore, error) {
 	store, err := newDynamoDBBigSegmentStoreImpl(b, context.GetLogging().Loggers)
 	if err != nil {
 		return nil, err

@@ -9,11 +9,9 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-sdk-common/v3/ldlogtest"
 	"github.com/launchdarkly/go-server-sdk-evaluation/v2/ldbuilders"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces/ldstoretypes"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-	"github.com/launchdarkly/go-server-sdk/v6/ldcomponents/ldstoreimpl"
-	"github.com/launchdarkly/go-server-sdk/v6/testhelpers"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoreimpl"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/storetest"
 	"github.com/launchdarkly/go-test-helpers/v2/jsonhelpers"
 
@@ -115,7 +113,7 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 		}},
 	}
 
-	getAllData := func(t *testing.T, store interfaces.PersistentDataStore) []ldstoretypes.SerializedCollection {
+	getAllData := func(t *testing.T, store subsystems.PersistentDataStore) []ldstoretypes.SerializedCollection {
 		flags, err := store.GetAll(ldstoreimpl.Features())
 		require.NoError(t, err)
 		segments, err := store.GetAll(ldstoreimpl.Segments())
@@ -130,7 +128,8 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 		for _, params := range kindParams {
 			t.Run(params.name, func(t *testing.T) {
 				mockLog := ldlogtest.NewMockLog()
-				ctx := testhelpers.NewSimpleClientContext("").WithLogging(ldcomponents.Logging().Loggers(mockLog.Loggers))
+				ctx := subsystems.BasicClientContext{}
+				ctx.Logging.Loggers = mockLog.Loggers
 				store, err := makeTestStore("").CreatePersistentDataStore(ctx)
 				require.NoError(t, err)
 				defer store.Close()
@@ -159,7 +158,8 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 		for _, params := range kindParams {
 			t.Run(params.name, func(t *testing.T) {
 				mockLog := ldlogtest.NewMockLog()
-				ctx := testhelpers.NewSimpleClientContext("").WithLogging(ldcomponents.Logging().Loggers(mockLog.Loggers))
+				ctx := subsystems.BasicClientContext{}
+				ctx.Logging.Loggers = mockLog.Loggers
 				store, err := makeTestStore("").CreatePersistentDataStore(ctx)
 				require.NoError(t, err)
 				defer store.Close()
@@ -182,11 +182,11 @@ func baseBuilder() *DataStoreBuilder {
 	return DataStore(testTableName).SessionOptions(makeTestOptions())
 }
 
-func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
+func makeTestStore(prefix string) subsystems.PersistentDataStoreFactory {
 	return baseBuilder().Prefix(prefix)
 }
 
-func makeFailedStore() interfaces.PersistentDataStoreFactory {
+func makeFailedStore() subsystems.PersistentDataStoreFactory {
 	// Here we ensure that all DynamoDB operations will fail by simply *not* using makeTestOptions(),
 	// so that the client does not have the necessary region parameter.
 	return DataStore(testTableName)
@@ -234,7 +234,7 @@ func clearTestData(prefix string) error {
 	return batchWriteRequests(client, testTableName, requests)
 }
 
-func setConcurrentModificationHook(store interfaces.PersistentDataStore, hook func()) {
+func setConcurrentModificationHook(store subsystems.PersistentDataStore, hook func()) {
 	store.(*dynamoDBDataStore).testUpdateHook = hook
 }
 

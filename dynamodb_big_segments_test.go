@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/launchdarkly/go-server-sdk/v6/interfaces"
+	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/storetest"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,7 +20,7 @@ func TestBigSegmentStore(t *testing.T) {
 	client, err := createTestClient()
 	require.NoError(t, err)
 
-	setTestMetadata := func(prefix string, metadata interfaces.BigSegmentStoreMetadata) error {
+	setTestMetadata := func(prefix string, metadata subsystems.BigSegmentStoreMetadata) error {
 		key := prefixedNamespace(prefix, bigSegmentsMetadataKey)
 		item := map[string]*dynamodb.AttributeValue{
 			tablePartitionKey:       {S: aws.String(key)},
@@ -63,7 +63,7 @@ func TestBigSegmentStore(t *testing.T) {
 	}
 
 	storetest.NewBigSegmentStoreTestSuite(
-		func(prefix string) interfaces.BigSegmentStoreFactory {
+		func(prefix string) subsystems.BigSegmentStoreFactory {
 			return baseBuilder().Prefix(prefix)
 		},
 		clearTestData,
