@@ -261,7 +261,7 @@ func createTableIfNecessary() error {
 		return nil
 	}
 	var resNotFoundErr *types.ResourceNotFoundException
-	if errors.As(err, &resNotFoundErr) {
+	if !errors.As(err, &resNotFoundErr) {
 		return err
 	}
 	createParams := dynamodb.CreateTableInput{
