@@ -45,7 +45,7 @@ jobs:
 
       - run:
           name: install go-junit-report
-          command: go install github.com/jstemmer/go-junit-report
+          command: go install github.com/jstemmer/go-junit-report/v2@latest
 
       - when:
           condition: <<parameters.run-lint>>
