@@ -7,16 +7,17 @@ workflows:
   workflow:
     jobs:
       - go-test:
+          name: Go 1.19
+          docker-image: cimg/go:1.19
+      - go-test:
+          name: Go 1.18
+          docker-image: cimg/go:1.18
+      - go-test:
+          name: Go 1.17
+          docker-image: cimg/go:1.17
+      - go-test:
           name: Go 1.16
           docker-image: cimg/go:1.16
-      - go-test:
-          name: Go 1.15
-          docker-image: cimg/go:1.15
-          with-coverage: true
-          run-lint: true
-      - go-test:
-          name: Go 1.14
-          docker-image: cimg/go:1.14
       - go-test-windows:
           name: Windows
 
@@ -96,14 +97,14 @@ jobs:
     steps:
       - checkout
       - run: 
-          name: download Go 1.14.13
+          name: download Go 1.16.15
           command: |
             $ErrorActionPreference = "Stop"
-            $installerUrl = "https://golang.org/dl/go1.14.13.windows-amd64.msi"
-            (New-Object System.Net.WebClient).DownloadFile($installerUrl, "go1.14.13.windows-amd64.msi")
+            $installerUrl = "https://go.dev/dl/go1.16.15.windows-amd64.msi"
+            (New-Object System.Net.WebClient).DownloadFile($installerUrl, "go1.16.15.windows-amd64.msi")
       - run:
-          name: install Go 1.14.13
-          command: Start-Process msiexec.exe -Wait -ArgumentList "/I go1.14.13.windows-amd64.msi /quiet"
+          name: install Go 1.16.15
+          command: Start-Process msiexec.exe -Wait -ArgumentList "/I go1.16.15.windows-amd64.msi /quiet"
       - run: go version
       - run:
           name: setup DynamoDB
