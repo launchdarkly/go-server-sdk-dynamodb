@@ -4,9 +4,8 @@ import (
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 // DataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
@@ -32,11 +31,12 @@ import (
 // You do not need to call the builder's CreatePersistentDataStore() method yourself to build the
 // actual data store; that will be done by the SDK.
 type DataStoreBuilder struct {
-	client         dynamodbiface.DynamoDBAPI
-	table          string
-	prefix         string
-	configs        []*aws.Config
-	sessionOptions session.Options
+	client        *dynamodb.Client
+	table         string
+	prefix        string
+	awsConfig     *aws.Config
+	clientOptions dynamodb.Options
+	clientOpFns   []func(*dynamodb.Options)
 }
 
 // DataStore returns a configurable builder for a DynamoDB-backed data store.
@@ -54,28 +54,28 @@ func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
 	return b
 }
 
-// ClientConfig adds an AWS configuration object for the DynamoDB client. This allows you to customize
-// settings such as the retry behavior.
-func (b *DataStoreBuilder) ClientConfig(config *aws.Config) *DataStoreBuilder {
-	if config != nil {
-		b.configs = append(b.configs, config)
-	}
-	return b
-}
-
 // DynamoClient specifies an existing DynamoDB client instance. Use this if you want to customize the client
 // used by the data store in ways that are not supported by other DataStoreBuilder options. If you
 // specify this option, then any configurations specified with SessionOptions or ClientConfig will be ignored.
-func (b *DataStoreBuilder) DynamoClient(client dynamodbiface.DynamoDBAPI) *DataStoreBuilder {
+func (b *DataStoreBuilder) DynamoClient(client *dynamodb.Client) *DataStoreBuilder {
 	b.client = client
 	return b
 }
 
-// SessionOptions specifies an AWS Session.Options object to use when creating the DynamoDB session. This
-// can be used to set properties such as the region programmatically, rather than relying on the defaults
-// from the environment.
-func (b *DataStoreBuilder) SessionOptions(options session.Options) *DataStoreBuilder {
-	b.sessionOptions = options
+// ClientOptions specifies custom parameters for the dynamodb.NewFromConfig client constructor. This can be used
+// to set properties such as the region programmatically, rather than relying on the defaults from the environment.
+func (b *DataStoreBuilder) ClientConfig(options aws.Config, optFns ...func(*dynamodb.Options)) *DataStoreBuilder {
+	b.awsConfig = &options
+	b.clientOpFns = optFns
+	return b
+}
+
+// ClientOptions specifies custom parameters for the dynamodb.New client constructor. This can be used to set
+// properties such as the region programmatically, rather than relying on the defaults from the environment.
+func (b *DataStoreBuilder) ClientOptions(options dynamodb.Options, optFns ...func(*dynamodb.Options)) *DataStoreBuilder {
+	b.awsConfig = nil
+	b.clientOptions = options
+	b.clientOpFns = optFns
 	return b
 }
 

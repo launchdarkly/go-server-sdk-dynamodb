@@ -6,7 +6,9 @@ This library provides a [DynamoDB](https://aws.amazon.com/dynamodb/)-backed pers
 
 This version of the library requires at least version 5.3.0 of the LaunchDarkly Go SDK. In Go SDK versions prior to 5.0.0, the `lddynamodb` package was built into the SDK (`gopkg.in/launchdarkly/go-server-sdk.v4/lddynamodb`).
 
-The minimum Go version is 1.14.
+This version of the library uses the [v2 AWS Go SDK](https://github.com/aws/aws-sdk-go-v2).
+
+The minimum Go version is 1.16.
 
 For more information, see also: [Using DynamoDB as a persistent feature store](https://docs.launchdarkly.com/sdk/features/storing-data/dynamodb#go).
 
@@ -30,7 +32,7 @@ import (
     var config ld.Config{}
     config.DataStore = ldcomponents.PersistentDataStore(
         lddymamodb.DataStore("my-table-name").
-            SessionOptions(session.Options{Profile: "profile_name"}),
+            ClientOptions(dynamodb.Options{Region: "us-west-1"}),
     )
 ```
 

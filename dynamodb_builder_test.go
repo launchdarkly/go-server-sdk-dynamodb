@@ -1,42 +1,51 @@
 package lddynamodb
 
 import (
-	"os"
 	"testing"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldvalue"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDataSourceBuilder(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		b := DataStore("t")
 		assert.Nil(t, b.client)
-		assert.Len(t, b.configs, 0)
+		assert.Nil(t, b.awsConfig)
 		assert.Equal(t, "", b.prefix)
-		assert.Equal(t, session.Options{}, b.sessionOptions)
+		assert.Equal(t, dynamodb.Options{}, b.clientOptions)
+		assert.Len(t, b.clientOpFns, 0)
 		assert.Equal(t, "t", b.table)
 	})
 
 	t.Run("ClientConfig", func(t *testing.T) {
-		c1 := &aws.Config{MaxRetries: aws.Int(1)}
-		c2 := &aws.Config{MaxRetries: aws.Int(2)}
+		conf := aws.Config{RetryMaxAttempts: 1}
+		optFn1 := func(*dynamodb.Options) {}
+		optFn2 := func(*dynamodb.Options) {}
 
-		b := DataStore("t").ClientConfig(c1).ClientConfig(c2)
-		assert.Equal(t, []*aws.Config{c1, c2}, b.configs)
+		b := DataStore("t").ClientConfig(conf, optFn1, optFn2)
+		assert.Equal(t, &conf, b.awsConfig)
+		assert.Len(t, b.clientOpFns, 2)
+	})
+
+	t.Run("ClientOptions", func(t *testing.T) {
+		opt := dynamodb.Options{ClientLogMode: aws.LogRequestEventMessage}
+		optFn1 := func(*dynamodb.Options) {}
+		optFn2 := func(*dynamodb.Options) {}
+
+		b := DataStore("t").ClientOptions(opt, optFn1, optFn2)
+		assert.Nil(t, b.awsConfig)
+		assert.Equal(t, opt, b.clientOptions)
+		assert.Len(t, b.clientOpFns, 2)
 	})
 
 	t.Run("DynamoClient", func(t *testing.T) {
-		sess, err := session.NewSessionWithOptions(session.Options{})
-		require.NoError(t, err)
-		client := dynamodb.New(sess)
+		client := dynamodb.New(dynamodb.Options{})
 
 		b := DataStore("t").DynamoClient(client)
 		assert.Equal(t, client, b.client)
@@ -53,32 +62,12 @@ func TestDataSourceBuilder(t *testing.T) {
 		assert.Equal(t, "", b.prefix)
 	})
 
-	t.Run("SessionOptions", func(t *testing.T) {
-		s := session.Options{Profile: "x"}
-
-		b := DataStore("t").SessionOptions(s)
-		assert.Equal(t, s, b.sessionOptions)
-	})
-
 	t.Run("error for empty table name", func(t *testing.T) {
 		ds, err := DataStore("").CreatePersistentDataStore(simpleTestContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
 		bs, err := DataStore("").CreateBigSegmentStore(simpleTestContext{})
-		assert.Error(t, err)
-		assert.Nil(t, bs)
-	})
-
-	t.Run("error for invalid configuration", func(t *testing.T) {
-		os.Setenv("AWS_CA_BUNDLE", "not a real CA file")
-		defer os.Setenv("AWS_CA_BUNDLE", "")
-
-		ds, err := DataStore("t").CreatePersistentDataStore(simpleTestContext{})
-		assert.Error(t, err)
-		assert.Nil(t, ds)
-
-		bs, err := DataStore("t").CreateBigSegmentStore(simpleTestContext{})
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})

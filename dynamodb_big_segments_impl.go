@@ -1,17 +1,17 @@
 package lddynamodb
 
 import (
+	"context"
 	"errors"
-	"strconv"
 
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldlog"
 	"gopkg.in/launchdarkly/go-sdk-common.v2/ldtime"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/interfaces"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/ldcomponents/ldstoreimpl"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 const (
@@ -24,10 +24,12 @@ const (
 
 // Internal implementation of the BigSegmentStore interface for DynamoDB.
 type dynamoDBBigSegmentStoreImpl struct {
-	client  dynamodbiface.DynamoDBAPI
-	table   string
-	prefix  string
-	loggers ldlog.Loggers
+	client        *dynamodb.Client
+	context       context.Context
+	cancelContext func()
+	table         string
+	prefix        string
+	loggers       ldlog.Loggers
 }
 
 func newDynamoDBBigSegmentStoreImpl(
@@ -38,16 +40,14 @@ func newDynamoDBBigSegmentStoreImpl(
 		return nil, errors.New("table name is required")
 	}
 
-	client, err := makeClient(builder)
-	if err != nil {
-		return nil, err
-	}
-
+	client, context, cancelContext := makeClientAndContext(builder)
 	store := &dynamoDBBigSegmentStoreImpl{
-		client:  client,
-		table:   builder.table,
-		prefix:  builder.prefix,
-		loggers: loggers, // copied by value so we can modify it
+		client:        client,
+		context:       context,
+		cancelContext: cancelContext,
+		table:         builder.table,
+		prefix:        builder.prefix,
+		loggers:       loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetPrefix("DynamoDBBigSegmentStoreStore:")
 	store.loggers.Infof(`Using DynamoDB table %s`, store.table)
@@ -57,12 +57,12 @@ func newDynamoDBBigSegmentStoreImpl(
 
 func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (interfaces.BigSegmentStoreMetadata, error) {
 	key := prefixedNamespace(store.prefix, bigSegmentsMetadataKey)
-	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+	result, err := store.client.GetItem(store.context, &dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
-		Key: map[string]*dynamodb.AttributeValue{
-			tablePartitionKey: {S: aws.String(key)},
-			tableSortKey:      {S: aws.String(key)},
+		Key: map[string]types.AttributeValue{
+			tablePartitionKey: attrValueOfString(key),
+			tableSortKey:      attrValueOfString(key),
 		},
 	})
 	if err != nil {
@@ -72,11 +72,10 @@ func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (interfaces.BigSegmentSt
 		return interfaces.BigSegmentStoreMetadata{}, errors.New("timestamp not found")
 	}
 
-	itemValue := result.Item[bigSegmentsSyncTimeAttr]
-	if itemValue == nil || itemValue.N == nil {
+	value := attrValueToUint64(result.Item[bigSegmentsSyncTimeAttr])
+	if value == 0 {
 		return interfaces.BigSegmentStoreMetadata{}, nil // COVERAGE: can't cause this in unit tests
 	}
-	value, _ := strconv.Atoi(*itemValue.N)
 
 	return interfaces.BigSegmentStoreMetadata{
 		LastUpToDate: ldtime.UnixMillisecondTime(value),
@@ -86,12 +85,12 @@ func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (interfaces.BigSegmentSt
 func (store *dynamoDBBigSegmentStoreImpl) GetUserMembership(
 	userHashKey string,
 ) (interfaces.BigSegmentMembership, error) {
-	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+	result, err := store.client.GetItem(store.context, &dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
-		Key: map[string]*dynamodb.AttributeValue{
-			tablePartitionKey: {S: aws.String(prefixedNamespace(store.prefix, bigSegmentsUserDataKey))},
-			tableSortKey:      {S: aws.String(userHashKey)},
+		Key: map[string]types.AttributeValue{
+			tablePartitionKey: attrValueOfString(prefixedNamespace(store.prefix, bigSegmentsUserDataKey)),
+			tableSortKey:      attrValueOfString(userHashKey),
 		},
 	})
 	if err != nil {
@@ -105,18 +104,15 @@ func (store *dynamoDBBigSegmentStoreImpl) GetUserMembership(
 	return ldstoreimpl.NewBigSegmentMembershipFromSegmentRefs(includedRefs, excludedRefs), nil
 }
 
-func getStringListFromSet(value *dynamodb.AttributeValue) []string {
-	if value == nil || value.SS == nil {
-		return nil
+func getStringListFromSet(value types.AttributeValue) []string {
+	if ss, ok := value.(*types.AttributeValueMemberSS); ok {
+		return ss.Value
 	}
-	ret := make([]string, len(value.SS))
-	for i, ss := range value.SS {
-		ret[i] = *ss
-	}
-	return ret
+	return nil
 }
 
 func (store *dynamoDBBigSegmentStoreImpl) Close() error {
+	store.cancelContext() // stops any pending operations
 	return nil
 }
 
