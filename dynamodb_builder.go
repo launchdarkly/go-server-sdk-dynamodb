@@ -35,8 +35,8 @@ type DataStoreBuilder struct {
 	table         string
 	prefix        string
 	awsConfig     *aws.Config
-	clientOptions dynamodb.Options
-	clientOpFns   []func(*dynamodb.Options)
+	clientOptions *dynamodb.Options
+	clientOptFns  []func(*dynamodb.Options)
 }
 
 // DataStore returns a configurable builder for a DynamoDB-backed data store.
@@ -66,7 +66,7 @@ func (b *DataStoreBuilder) DynamoClient(client *dynamodb.Client) *DataStoreBuild
 // to set properties such as the region programmatically, rather than relying on the defaults from the environment.
 func (b *DataStoreBuilder) ClientConfig(options aws.Config, optFns ...func(*dynamodb.Options)) *DataStoreBuilder {
 	b.awsConfig = &options
-	b.clientOpFns = optFns
+	b.clientOptFns = optFns
 	return b
 }
 
@@ -74,8 +74,8 @@ func (b *DataStoreBuilder) ClientConfig(options aws.Config, optFns ...func(*dyna
 // properties such as the region programmatically, rather than relying on the defaults from the environment.
 func (b *DataStoreBuilder) ClientOptions(options dynamodb.Options, optFns ...func(*dynamodb.Options)) *DataStoreBuilder {
 	b.awsConfig = nil
-	b.clientOptions = options
-	b.clientOpFns = optFns
+	b.clientOptions = &options
+	b.clientOptFns = optFns
 	return b
 }
 

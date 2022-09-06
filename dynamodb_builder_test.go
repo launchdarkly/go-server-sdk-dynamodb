@@ -18,8 +18,8 @@ func TestDataSourceBuilder(t *testing.T) {
 		assert.Nil(t, b.client)
 		assert.Nil(t, b.awsConfig)
 		assert.Equal(t, "", b.prefix)
-		assert.Equal(t, dynamodb.Options{}, b.clientOptions)
-		assert.Len(t, b.clientOpFns, 0)
+		assert.Nil(t, b.clientOptions)
+		assert.Len(t, b.clientOptFns, 0)
 		assert.Equal(t, "t", b.table)
 	})
 
@@ -30,7 +30,8 @@ func TestDataSourceBuilder(t *testing.T) {
 
 		b := DataStore("t").ClientConfig(conf, optFn1, optFn2)
 		assert.Equal(t, &conf, b.awsConfig)
-		assert.Len(t, b.clientOpFns, 2)
+		assert.Nil(t, b.clientOptions)
+		assert.Len(t, b.clientOptFns, 2)
 	})
 
 	t.Run("ClientOptions", func(t *testing.T) {
@@ -40,8 +41,8 @@ func TestDataSourceBuilder(t *testing.T) {
 
 		b := DataStore("t").ClientOptions(opt, optFn1, optFn2)
 		assert.Nil(t, b.awsConfig)
-		assert.Equal(t, opt, b.clientOptions)
-		assert.Len(t, b.clientOpFns, 2)
+		assert.Equal(t, &opt, b.clientOptions)
+		assert.Len(t, b.clientOptFns, 2)
 	})
 
 	t.Run("DynamoClient", func(t *testing.T) {

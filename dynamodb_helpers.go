@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
@@ -78,15 +80,96 @@ func batchWriteRequests(
 	return nil
 }
 
-func makeClientAndContext(builder *DataStoreBuilder) (*dynamodb.Client, context.Context, context.CancelFunc) {
-	context, cancelFunc := context.WithCancel(context.Background())
+func makeClientAndContext(builder *DataStoreBuilder) (*dynamodb.Client, context.Context, context.CancelFunc, error) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	client := builder.client
 	if client == nil {
+		var config aws.Config
 		if builder.awsConfig != nil {
-			client = dynamodb.NewFromConfig(*builder.awsConfig, builder.clientOpFns...)
+			config = *builder.awsConfig
 		} else {
-			client = dynamodb.New(builder.clientOptions, builder.clientOpFns...)
+			var err error
+			config, err = awsconfig.LoadDefaultConfig(context.Background())
+			if err != nil {
+				cancelFunc()
+				return nil, nil, nil, err
+			}
 		}
+		var optFns []func(*dynamodb.Options)
+		if builder.clientOptions != nil {
+			optFns = append(optFns, func(o *dynamodb.Options) {
+				*o = mergeDynamoDBOptions(*o, *builder.clientOptions)
+			})
+		}
+		optFns = append(optFns, builder.clientOptFns...)
+		client = dynamodb.NewFromConfig(config, optFns...)
 	}
-	return client, context, cancelFunc
+	return client, ctx, cancelFunc, nil
+}
+
+func mergeDynamoDBOptions(target, source dynamodb.Options) dynamodb.Options {
+	// This awkward logic is necessary due to a design detail of the AWS SDK:
+	// - Most applications will want to use the "default configuration" behavior, where AWS gets
+	//   its credentials from whatever combination of environment variables, IAM roles, etc. are
+	//   in effect.
+	// - However, you can only get that by using LoadDefaultConfig, which gives you an aws.Config
+	//   struct. So then you have to use dynamodb.NewFromConfig rather than dynamodb.New, and you
+	//   can't pass an initial dynamodb.Options struct. If the application wanted to specify the
+	//   latter, then we need to copy the fields from it as part of a modifier function, which is
+	//   applied after the AWS SDK has already converted the aws.Config to dynamodb.Options
+	//   internally.
+	ret := target.Copy()
+	ret.APIOptions = append(ret.APIOptions, source.APIOptions...)
+	if source.ClientLogMode != 0 {
+		ret.ClientLogMode = source.ClientLogMode
+	}
+	if source.Credentials != nil {
+		ret.Credentials = source.Credentials
+	}
+	if source.DefaultsMode != "" {
+		ret.DefaultsMode = source.DefaultsMode
+	}
+	if source.DisableValidateResponseChecksum {
+		ret.DisableValidateResponseChecksum = source.DisableValidateResponseChecksum
+	}
+	if source.EnableAcceptEncodingGzip {
+		ret.EnableAcceptEncodingGzip = source.EnableAcceptEncodingGzip
+	}
+	if source.EndpointDiscovery != (dynamodb.EndpointDiscoveryOptions{}) {
+		ret.EndpointDiscovery.EnableEndpointDiscovery = source.EndpointDiscovery.EnableEndpointDiscovery
+	}
+	if source.EndpointOptions != (dynamodb.EndpointResolverOptions{}) {
+		ret.EndpointOptions = source.EndpointOptions
+	}
+	if source.EndpointResolver != nil {
+		ret.EndpointResolver = source.EndpointResolver
+	}
+	if source.HTTPClient != nil {
+		ret.HTTPClient = source.HTTPClient
+	}
+	if source.HTTPSignerV4 != nil {
+		ret.HTTPSignerV4 = source.HTTPSignerV4
+	}
+	if source.IdempotencyTokenProvider != nil {
+		ret.IdempotencyTokenProvider = source.IdempotencyTokenProvider
+	}
+	if source.Logger != nil {
+		ret.Logger = source.Logger
+	}
+	if source.Region != "" {
+		ret.Region = source.Region
+	}
+	if source.RetryMaxAttempts != 0 {
+		ret.RetryMaxAttempts = source.RetryMaxAttempts
+	}
+	if source.RetryMode != "" {
+		ret.RetryMode = source.RetryMode
+	}
+	if source.Retryer != nil {
+		ret.Retryer = source.Retryer
+	}
+	if source.RuntimeEnvironment != (aws.RuntimeEnvironment{}) {
+		ret.RuntimeEnvironment = source.RuntimeEnvironment
+	}
+	return ret
 }

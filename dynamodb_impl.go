@@ -76,7 +76,10 @@ func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) 
 		return nil, errors.New("table name is required")
 	}
 
-	client, context, cancelContext := makeClientAndContext(builder)
+	client, context, cancelContext, err := makeClientAndContext(builder)
+	if err != nil {
+		return nil, err
+	}
 	store := &dynamoDBDataStore{
 		client:        client,
 		context:       context,
