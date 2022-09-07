@@ -2,6 +2,20 @@
 
 All notable changes to the LaunchDarkly Go SDK DynamoDB integration will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [2.0.0] - 2022-09-07
+This release updates the integration to use [`aws-sdk-go-v2`](https://github.com/aws/aws-sdk-go-v2) instead of the older AWS SDK. There is no functional difference in terms of database operations.
+
+For applications that already use the v2 AWS SDK for other purposes, updating to this version removes an extra dependency and allows application code to configure the integration using the v2 configuration types. For applications that do not use the AWS SDK themselves, we still recommend updating to this version because the older AWS SDK will not be maintained forever and has had security vulnerabilities reported.
+
+### Added:
+- `DataStoreBuilder.ClientConfig` and `DataStoreBuilder.ClientOptions`, which use the newer AWS SDK configuration types.
+
+### Changed:
+- `DataStoreBuilder.DynamoClient()` now takes a parameter of type `*dynamodb.Client`, since the `dynamodbiface.DynamoDBAPI` no longer exists.
+
+### Removed:
+- `DataStoreBuilder.SessionOptions`
+
 ## [1.1.1] - 2022-04-07
 ### Fixed:
 - If the SDK attempts to store a feature flag or segment whose total data size is over the 400KB limit for DynamoDB items, this integration will now log (at `Error` level) a message like `The item "my-flag-key" in "features" was too large to store in DynamoDB and was dropped` but will still process all other data updates. Previously, it would cause the SDK to enter an error state in which the oversized item would be pointlessly retried and other updates might be lost.

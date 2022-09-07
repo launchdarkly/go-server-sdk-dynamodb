@@ -2,16 +2,17 @@ version: 2
 
 jobs:
   - docker:
-      image: golang:1.16-buster
+      image: golang:1.18-buster
     template:
       name: go
       skip:
         - test  # CI tests require a database
 
 branches:
+  - name: main
   - name: v2
   - name: v1
 
 publications:
-  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v2
+  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v3
     description: documentation

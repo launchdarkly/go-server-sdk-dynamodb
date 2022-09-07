@@ -1,12 +1,14 @@
 # LaunchDarkly Server-side SDK for Go - Dynamodb integration
 
-[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk-dynamodb.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk-dynamodb) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v2)
+[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk-dynamodb.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk-dynamodb) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v3)
 
 This library provides a [DynamoDB](https://aws.amazon.com/dynamodb/)-backed persistence mechanism (data store) for the [LaunchDarkly Go SDK](https://github.com/launchdarkly/go-server-sdk), replacing the default in-memory data store.
 
-This version of the library requires at least version 6.0.0 of the LaunchDarkly Go SDK. In Go SDK versions prior to 6.0.0, the `lddynamodb` package was built into the SDK (`gopkg.in/launchdarkly/go-server-sdk.v4/lddynamodb`).
+This version of the library requires at least version 6.0.0 of the LaunchDarkly Go SDK.
 
-The minimum Go version is 1.16.
+This version of the library uses the [v2 AWS Go SDK](https://github.com/aws/aws-sdk-go-v2).
+
+The minimum Go version is 1.18.
 
 For more information, see also: [Using DynamoDB as a persistent feature store](https://docs.launchdarkly.com/sdk/features/storing-data/dynamodb#go).
 
@@ -20,7 +22,7 @@ This assumes that you have already installed the LaunchDarkly Go SDK.
 import (
     ld "github.com/launchdarkly/go-server-sdk/v6"
     "github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-    lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb/v2"
+    lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb/v3"
 )
 ```
 
@@ -30,7 +32,7 @@ import (
     var config ld.Config{}
     config.DataStore = ldcomponents.PersistentDataStore(
         lddymamodb.DataStore("my-table-name").
-            SessionOptions(session.Options{Profile: "profile_name"}),
+            ClientOptions(dynamodb.Options{Region: "us-west-1"}),
     )
 ```
 

@@ -7,35 +7,46 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDataSourceBuilder(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		b := DataStore("t")
 		assert.Nil(t, b.client)
-		assert.Len(t, b.configs, 0)
+		assert.Nil(t, b.awsConfig)
 		assert.Equal(t, "", b.prefix)
-		assert.Equal(t, session.Options{}, b.sessionOptions)
+		assert.Nil(t, b.clientOptions)
+		assert.Len(t, b.clientOptFns, 0)
 		assert.Equal(t, "t", b.table)
 	})
 
 	t.Run("ClientConfig", func(t *testing.T) {
-		c1 := &aws.Config{MaxRetries: aws.Int(1)}
-		c2 := &aws.Config{MaxRetries: aws.Int(2)}
+		conf := aws.Config{RetryMaxAttempts: 1}
+		optFn1 := func(*dynamodb.Options) {}
+		optFn2 := func(*dynamodb.Options) {}
 
-		b := DataStore("t").ClientConfig(c1).ClientConfig(c2)
-		assert.Equal(t, []*aws.Config{c1, c2}, b.configs)
+		b := DataStore("t").ClientConfig(conf, optFn1, optFn2)
+		assert.Equal(t, &conf, b.awsConfig)
+		assert.Nil(t, b.clientOptions)
+		assert.Len(t, b.clientOptFns, 2)
+	})
+
+	t.Run("ClientOptions", func(t *testing.T) {
+		opt := dynamodb.Options{ClientLogMode: aws.LogRequestEventMessage}
+		optFn1 := func(*dynamodb.Options) {}
+		optFn2 := func(*dynamodb.Options) {}
+
+		b := DataStore("t").ClientOptions(opt, optFn1, optFn2)
+		assert.Nil(t, b.awsConfig)
+		assert.Equal(t, &opt, b.clientOptions)
+		assert.Len(t, b.clientOptFns, 2)
 	})
 
 	t.Run("DynamoClient", func(t *testing.T) {
-		sess, err := session.NewSessionWithOptions(session.Options{})
-		require.NoError(t, err)
-		client := dynamodb.New(sess)
+		client := dynamodb.New(dynamodb.Options{})
 
 		b := DataStore("t").DynamoClient(client)
 		assert.Equal(t, client, b.client)
@@ -50,13 +61,6 @@ func TestDataSourceBuilder(t *testing.T) {
 		// would be impractical because of the need to configure throttling on a per-table basis.
 		b.Prefix("")
 		assert.Equal(t, "", b.prefix)
-	})
-
-	t.Run("SessionOptions", func(t *testing.T) {
-		s := session.Options{Profile: "x"}
-
-		b := DataStore("t").SessionOptions(s)
-		assert.Equal(t, s, b.sessionOptions)
 	})
 
 	t.Run("error for empty table name", func(t *testing.T) {
