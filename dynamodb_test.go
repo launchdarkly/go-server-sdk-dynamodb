@@ -1,6 +1,8 @@
 package lddynamodb
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -17,11 +19,10 @@ import (
 	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers"
 	"gopkg.in/launchdarkly/go-server-sdk.v5/testhelpers/storetest"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,7 +180,7 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 }
 
 func baseBuilder() *DataStoreBuilder {
-	return DataStore(testTableName).SessionOptions(makeTestOptions())
+	return DataStore(testTableName).ClientOptions(makeTestOptions())
 }
 
 func makeTestStore(prefix string) interfaces.PersistentDataStoreFactory {
@@ -193,7 +194,7 @@ func makeFailedStore() interfaces.PersistentDataStoreFactory {
 }
 
 func verifyFailedStoreError(t assert.TestingT, err error) {
-	assert.Contains(t, err.Error(), "could not find region configuration")
+	assert.Contains(t, err.Error(), "an AWS region is required")
 }
 
 func clearTestData(prefix string) error {
@@ -201,101 +202,96 @@ func clearTestData(prefix string) error {
 		prefix += ":"
 	}
 
-	client, err := createTestClient()
-	if err != nil {
-		return err
-	}
-	var items []map[string]*dynamodb.AttributeValue
+	client := createTestClient()
+	var items []map[string]types.AttributeValue
 
-	err = client.ScanPages(&dynamodb.ScanInput{
+	scanInput := dynamodb.ScanInput{
 		TableName:            aws.String(testTableName),
 		ConsistentRead:       aws.Bool(true),
 		ProjectionExpression: aws.String("#namespace, #key"),
-		ExpressionAttributeNames: map[string]*string{
-			"#namespace": aws.String(tablePartitionKey),
-			"#key":       aws.String(tableSortKey),
+		ExpressionAttributeNames: map[string]string{
+			"#namespace": tablePartitionKey,
+			"#key":       tableSortKey,
 		},
-	}, func(out *dynamodb.ScanOutput, lastPage bool) bool {
+	}
+	for {
+		out, err := client.Scan(context.Background(), &scanInput)
+		if err != nil {
+			return err
+		}
 		items = append(items, out.Items...)
-		return !lastPage
-	})
-	if err != nil {
-		return err
+		if out.LastEvaluatedKey == nil {
+			break
+		}
+		scanInput.ExclusiveStartKey = out.LastEvaluatedKey
 	}
 
-	var requests []*dynamodb.WriteRequest
+	var requests []types.WriteRequest
 	for _, item := range items {
-		if strings.HasPrefix(*item[tablePartitionKey].S, prefix) {
-			requests = append(requests, &dynamodb.WriteRequest{
-				DeleteRequest: &dynamodb.DeleteRequest{Key: item},
+		if strings.HasPrefix(attrValueToString(item[tablePartitionKey]), prefix) {
+			requests = append(requests, types.WriteRequest{
+				DeleteRequest: &types.DeleteRequest{Key: item},
 			})
 		}
 	}
-	return batchWriteRequests(client, testTableName, requests)
+	return batchWriteRequests(context.Background(), client, testTableName, requests)
 }
 
 func setConcurrentModificationHook(store interfaces.PersistentDataStore, hook func()) {
 	store.(*dynamoDBDataStore).testUpdateHook = hook
 }
 
-func createTestClient() (*dynamodb.DynamoDB, error) {
-	sess, err := session.NewSessionWithOptions(makeTestOptions())
-	if err != nil {
-		return nil, err
-	}
-	return dynamodb.New(sess), nil
+func createTestClient() *dynamodb.Client {
+	return dynamodb.New(makeTestOptions())
 }
 
-func makeTestOptions() session.Options {
-	return session.Options{
-		Config: aws.Config{
-			Credentials: credentials.NewStaticCredentials("dummy", "not", "used"),
-			Endpoint:    aws.String(localEndpoint),
-			Region:      aws.String("us-east-1"), // this is ignored for a local instance, but is still required
-		},
+func makeTestOptions() dynamodb.Options {
+	return dynamodb.Options{
+		Credentials:      credentials.NewStaticCredentialsProvider("dummy", "not", "used"),
+		EndpointResolver: dynamodb.EndpointResolverFromURL(localEndpoint),
+		Region:           "us-east-1", // this is ignored for a local instance, but is still required
 	}
 }
 
 func createTableIfNecessary() error {
-	client, err := createTestClient()
-	if err != nil {
-		return err
-	}
-	_, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(testTableName)})
+	client := createTestClient()
+	_, err := client.DescribeTable(context.Background(),
+		&dynamodb.DescribeTableInput{TableName: aws.String(testTableName)})
 	if err == nil {
 		return nil
 	}
-	if e, ok := err.(awserr.Error); !ok || e.Code() != dynamodb.ErrCodeResourceNotFoundException {
+	var resNotFoundErr *types.ResourceNotFoundException
+	if !errors.As(err, &resNotFoundErr) {
 		return err
 	}
 	createParams := dynamodb.CreateTableInput{
-		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+		AttributeDefinitions: []types.AttributeDefinition{
 			{
 				AttributeName: aws.String(tablePartitionKey),
-				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
+				AttributeType: types.ScalarAttributeTypeS,
 			},
 			{
 				AttributeName: aws.String(tableSortKey),
-				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
+				AttributeType: types.ScalarAttributeTypeS,
 			},
 		},
-		KeySchema: []*dynamodb.KeySchemaElement{
+		KeySchema: []types.KeySchemaElement{
 			{
 				AttributeName: aws.String(tablePartitionKey),
-				KeyType:       aws.String(dynamodb.KeyTypeHash),
+				KeyType:       types.KeyTypeHash,
 			},
 			{
 				AttributeName: aws.String(tableSortKey),
-				KeyType:       aws.String(dynamodb.KeyTypeRange),
+				KeyType:       types.KeyTypeRange,
 			},
 		},
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+		ProvisionedThroughput: &types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1),
 			WriteCapacityUnits: aws.Int64(1),
 		},
 		TableName: aws.String(testTableName),
 	}
-	_, err = client.CreateTable(&createParams)
+	_, err = client.CreateTable(context.Background(), &createParams)
 	if err != nil {
 		return err
 	}
@@ -308,8 +304,9 @@ func createTableIfNecessary() error {
 		case <-deadline:
 			return fmt.Errorf("timed out waiting for new table to be ready")
 		case <-retry.C:
-			tableInfo, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(testTableName)})
-			if err == nil && *tableInfo.Table.TableStatus == dynamodb.TableStatusActive {
+			tableInfo, err := client.DescribeTable(context.Background(),
+				&dynamodb.DescribeTableInput{TableName: aws.String(testTableName)})
+			if err == nil && tableInfo.Table.TableStatus == types.TableStatusActive {
 				return nil
 			}
 		}
