@@ -30,19 +30,16 @@ package lddynamodb
 // stored as a single item, this mechanism will not work for extremely large flags or segments.
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"math"
-	"strconv"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldlog"
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems/ldstoretypes"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 const (
@@ -65,7 +62,9 @@ type namespaceAndKey struct {
 
 // Internal type for our DynamoDB implementation of the ld.DataStore interface.
 type dynamoDBDataStore struct {
-	client         dynamodbiface.DynamoDBAPI
+	client         *dynamodb.Client
+	context        context.Context
+	cancelContext  func()
 	table          string
 	prefix         string
 	loggers        ldlog.Loggers
@@ -77,32 +76,22 @@ func newDynamoDBDataStoreImpl(builder *DataStoreBuilder, loggers ldlog.Loggers) 
 		return nil, errors.New("table name is required")
 	}
 
-	client, err := makeClient(builder)
+	client, context, cancelContext, err := makeClientAndContext(builder)
 	if err != nil {
 		return nil, err
 	}
-
 	store := &dynamoDBDataStore{
-		client:  client,
-		table:   builder.table,
-		prefix:  builder.prefix,
-		loggers: loggers, // copied by value so we can modify it
+		client:        client,
+		context:       context,
+		cancelContext: cancelContext,
+		table:         builder.table,
+		prefix:        builder.prefix,
+		loggers:       loggers, // copied by value so we can modify it
 	}
 	store.loggers.SetPrefix("DynamoDBDataStore:")
 	store.loggers.Infof(`Using DynamoDB table %s`, store.table)
 
 	return store, nil
-}
-
-func makeClient(builder *DataStoreBuilder) (dynamodbiface.DynamoDBAPI, error) {
-	if builder.client != nil {
-		return builder.client, nil
-	}
-	sess, err := session.NewSessionWithOptions(builder.sessionOptions)
-	if err != nil {
-		return nil, fmt.Errorf("unable to configure DynamoDB client: %s", err)
-	}
-	return dynamodb.New(sess, builder.configs...), nil
 }
 
 func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection) error {
@@ -112,7 +101,7 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 		return fmt.Errorf("failed to get existing items prior to Init: %s", err)
 	}
 
-	requests := make([]*dynamodb.WriteRequest, 0)
+	requests := make([]types.WriteRequest, 0)
 	numItems := 0
 
 	// Insert or update every provided item
@@ -122,8 +111,8 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 			if !store.checkSizeLimit(av) {
 				continue
 			}
-			requests = append(requests, &dynamodb.WriteRequest{
-				PutRequest: &dynamodb.PutRequest{Item: av},
+			requests = append(requests, types.WriteRequest{
+				PutRequest: &types.PutRequest{Item: av},
 			})
 			nk := namespaceAndKey{namespace: store.namespaceForKind(coll.Kind), key: item.Key}
 			unusedOldKeys[nk] = false
@@ -135,26 +124,26 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 	initedKey := store.initedKey()
 	for k, v := range unusedOldKeys {
 		if v && k.namespace != initedKey {
-			delKey := map[string]*dynamodb.AttributeValue{
-				tablePartitionKey: {S: aws.String(k.namespace)},
-				tableSortKey:      {S: aws.String(k.key)},
+			delKey := map[string]types.AttributeValue{
+				tablePartitionKey: attrValueOfString(k.namespace),
+				tableSortKey:      attrValueOfString(k.key),
 			}
-			requests = append(requests, &dynamodb.WriteRequest{
-				DeleteRequest: &dynamodb.DeleteRequest{Key: delKey},
+			requests = append(requests, types.WriteRequest{
+				DeleteRequest: &types.DeleteRequest{Key: delKey},
 			})
 		}
 	}
 
 	// Now set the special key that we check in InitializedInternal()
-	initedItem := map[string]*dynamodb.AttributeValue{
-		tablePartitionKey: {S: aws.String(initedKey)},
-		tableSortKey:      {S: aws.String(initedKey)},
+	initedItem := map[string]types.AttributeValue{
+		tablePartitionKey: attrValueOfString(initedKey),
+		tableSortKey:      attrValueOfString(initedKey),
 	}
-	requests = append(requests, &dynamodb.WriteRequest{
-		PutRequest: &dynamodb.PutRequest{Item: initedItem},
+	requests = append(requests, types.WriteRequest{
+		PutRequest: &types.PutRequest{Item: initedItem},
 	})
 
-	if err := batchWriteRequests(store.client, store.table, requests); err != nil {
+	if err := batchWriteRequests(store.context, store.client, store.table, requests); err != nil {
 		// COVERAGE: can't cause an error here in unit tests because we only get this far if the
 		// DynamoDB client is successful on the initial query
 		return fmt.Errorf("failed to write %d items(s) in batches: %s", len(requests), err)
@@ -166,12 +155,12 @@ func (store *dynamoDBDataStore) Init(allData []ldstoretypes.SerializedCollection
 }
 
 func (store *dynamoDBDataStore) IsInitialized() bool {
-	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+	result, err := store.client.GetItem(store.context, &dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
-		Key: map[string]*dynamodb.AttributeValue{
-			tablePartitionKey: {S: aws.String(store.initedKey())},
-			tableSortKey:      {S: aws.String(store.initedKey())},
+		Key: map[string]types.AttributeValue{
+			tablePartitionKey: attrValueOfString(store.initedKey()),
+			tableSortKey:      attrValueOfString(store.initedKey()),
 		},
 	})
 	return err == nil && len(result.Item) != 0
@@ -181,20 +170,19 @@ func (store *dynamoDBDataStore) GetAll(
 	kind ldstoretypes.DataKind,
 ) ([]ldstoretypes.KeyedSerializedItemDescriptor, error) {
 	var results []ldstoretypes.KeyedSerializedItemDescriptor
-	err := store.client.QueryPages(store.makeQueryForKind(kind),
-		func(out *dynamodb.QueryOutput, lastPage bool) bool {
-			for _, item := range out.Items {
-				if key, serializedItemDesc, ok := store.decodeItem(item); ok {
-					results = append(results, ldstoretypes.KeyedSerializedItemDescriptor{
-						Key:  key,
-						Item: serializedItemDesc,
-					})
-				}
+	for paginator := dynamodb.NewQueryPaginator(store.client, store.makeQueryForKind(kind)); paginator.HasMorePages(); {
+		out, err := paginator.NextPage(store.context)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range out.Items {
+			if key, serializedItemDesc, ok := store.decodeItem(item); ok {
+				results = append(results, ldstoretypes.KeyedSerializedItemDescriptor{
+					Key:  key,
+					Item: serializedItemDesc,
+				})
 			}
-			return !lastPage
-		})
-	if err != nil {
-		return nil, err
+		}
 	}
 	return results, nil
 }
@@ -203,12 +191,12 @@ func (store *dynamoDBDataStore) Get(
 	kind ldstoretypes.DataKind,
 	key string,
 ) (ldstoretypes.SerializedItemDescriptor, error) {
-	result, err := store.client.GetItem(&dynamodb.GetItemInput{
+	result, err := store.client.GetItem(store.context, &dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
-		Key: map[string]*dynamodb.AttributeValue{
-			tablePartitionKey: {S: aws.String(store.namespaceForKind(kind))},
-			tableSortKey:      {S: aws.String(key)},
+		Key: map[string]types.AttributeValue{
+			tablePartitionKey: attrValueOfString(store.namespaceForKind(kind)),
+			tableSortKey:      attrValueOfString(key),
 		},
 	})
 	if err != nil {
@@ -244,7 +232,7 @@ func (store *dynamoDBDataStore) Upsert(
 		store.testUpdateHook()
 	}
 
-	_, err := store.client.PutItem(&dynamodb.PutItemInput{
+	_, err := store.client.PutItem(store.context, &dynamodb.PutItemInput{
 		TableName: aws.String(store.table),
 		Item:      av,
 		ConditionExpression: aws.String(
@@ -252,17 +240,18 @@ func (store *dynamoDBDataStore) Upsert(
 				"attribute_not_exists(#key) or " +
 				":version > #version",
 		),
-		ExpressionAttributeNames: map[string]*string{
-			"#namespace": aws.String(tablePartitionKey),
-			"#key":       aws.String(tableSortKey),
-			"#version":   aws.String(versionAttribute),
+		ExpressionAttributeNames: map[string]string{
+			"#namespace": tablePartitionKey,
+			"#key":       tableSortKey,
+			"#version":   versionAttribute,
 		},
-		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-			":version": {N: aws.String(strconv.Itoa(newItem.Version))},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":version": attrValueOfInt(newItem.Version),
 		},
 	})
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeConditionalCheckFailedException {
+		var condCheckErr *types.ConditionalCheckFailedException
+		if errors.As(err, &condCheckErr) {
 			if store.loggers.IsDebugEnabled() { // COVERAGE: tests don't verify debug logging
 				store.loggers.Debugf("Not updating item due to condition (namespace=%s key=%s version=%d)",
 					kind, key, newItem.Version)
@@ -279,18 +268,19 @@ func (store *dynamoDBDataStore) IsStoreAvailable() bool {
 	// There doesn't seem to be a specific DynamoDB API for just testing the connection. We will just
 	// do a simple query for the "inited" key, and test whether we get an error ("not found" does not
 	// count as an error).
-	_, err := store.client.GetItem(&dynamodb.GetItemInput{
+	_, err := store.client.GetItem(store.context, &dynamodb.GetItemInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
-		Key: map[string]*dynamodb.AttributeValue{
-			tablePartitionKey: {S: aws.String(store.initedKey())},
-			tableSortKey:      {S: aws.String(store.initedKey())},
+		Key: map[string]types.AttributeValue{
+			tablePartitionKey: attrValueOfString(store.initedKey()),
+			tableSortKey:      attrValueOfString(store.initedKey()),
 		},
 	})
 	return err == nil
 }
 
 func (store *dynamoDBDataStore) Close() error {
+	store.cancelContext() // stops any pending operations
 	return nil
 }
 
@@ -313,11 +303,11 @@ func (store *dynamoDBDataStore) makeQueryForKind(kind ldstoretypes.DataKind) *dy
 	return &dynamodb.QueryInput{
 		TableName:      aws.String(store.table),
 		ConsistentRead: aws.Bool(true),
-		KeyConditions: map[string]*dynamodb.Condition{
+		KeyConditions: map[string]types.Condition{
 			tablePartitionKey: {
-				ComparisonOperator: aws.String("EQ"),
-				AttributeValueList: []*dynamodb.AttributeValue{
-					{S: aws.String(store.namespaceForKind(kind))},
+				ComparisonOperator: types.ComparisonOperatorEq,
+				AttributeValueList: []types.AttributeValue{
+					attrValueOfString(store.namespaceForKind(kind)),
 				},
 			},
 		},
@@ -332,63 +322,35 @@ func (store *dynamoDBDataStore) readExistingKeys(
 		kind := coll.Kind
 		query := store.makeQueryForKind(kind)
 		query.ProjectionExpression = aws.String("#namespace, #key")
-		query.ExpressionAttributeNames = map[string]*string{
-			"#namespace": aws.String(tablePartitionKey),
-			"#key":       aws.String(tableSortKey),
+		query.ExpressionAttributeNames = map[string]string{
+			"#namespace": tablePartitionKey,
+			"#key":       tableSortKey,
 		}
-		err := store.client.QueryPages(query,
-			func(out *dynamodb.QueryOutput, lastPage bool) bool {
-				for _, i := range out.Items {
-					nk := namespaceAndKey{namespace: *(i[tablePartitionKey].S), key: *(i[tableSortKey].S)}
-					keys[nk] = true
-				}
-				return !lastPage
-			})
-		if err != nil {
-			return nil, err
+		for paginator := dynamodb.NewQueryPaginator(store.client, store.makeQueryForKind(kind)); paginator.HasMorePages(); {
+			out, err := paginator.NextPage(store.context)
+			if err != nil {
+				return nil, err
+			}
+			for _, i := range out.Items {
+				nk := namespaceAndKey{namespace: attrValueToString(i[tablePartitionKey]),
+					key: attrValueToString(i[tableSortKey])}
+				keys[nk] = true
+			}
 		}
 	}
 	return keys, nil
 }
 
-// batchWriteRequests executes a list of write requests (PutItem or DeleteItem)
-// in batches of 25, which is the maximum BatchWriteItem can handle.
-func batchWriteRequests(
-	client dynamodbiface.DynamoDBAPI,
-	table string,
-	requests []*dynamodb.WriteRequest,
-) error {
-	for len(requests) > 0 {
-		batchSize := int(math.Min(float64(len(requests)), 25))
-		batch := requests[:batchSize]
-		requests = requests[batchSize:]
-
-		_, err := client.BatchWriteItem(&dynamodb.BatchWriteItemInput{
-			RequestItems: map[string][]*dynamodb.WriteRequest{table: batch},
-		})
-		if err != nil {
-			// COVERAGE: can't simulate this condition in unit tests because we will only get this
-			// far if the initial query in Init() already succeeded, and we don't have the ability
-			// to make DynamoDB fail *selectively* within a single test
-			return err
-		}
-	}
-	return nil
-}
-
 func (store *dynamoDBDataStore) decodeItem(
-	av map[string]*dynamodb.AttributeValue,
+	av map[string]types.AttributeValue,
 ) (string, ldstoretypes.SerializedItemDescriptor, bool) {
-	keyValue := av[tableSortKey]
-	versionValue := av[versionAttribute]
-	itemJSONValue := av[itemJSONAttribute]
-	if keyValue != nil && keyValue.S != nil &&
-		versionValue != nil && versionValue.N != nil &&
-		itemJSONValue != nil && itemJSONValue.S != nil {
-		v, _ := strconv.Atoi(*versionValue.N)
-		return *keyValue.S, ldstoretypes.SerializedItemDescriptor{
-			Version:        v,
-			SerializedItem: []byte(*itemJSONValue.S),
+	key := attrValueToString(av[tableSortKey])
+	version := attrValueToInt(av[versionAttribute])
+	itemJSON := attrValueToString(av[itemJSONAttribute])
+	if key != "" {
+		return key, ldstoretypes.SerializedItemDescriptor{
+			Version:        version,
+			SerializedItem: []byte(itemJSON),
 		}, true
 	}
 	return "", ldstoretypes.SerializedItemDescriptor{}, false // COVERAGE: no way to cause this in unit tests
@@ -398,30 +360,25 @@ func (store *dynamoDBDataStore) encodeItem(
 	kind ldstoretypes.DataKind,
 	key string,
 	item ldstoretypes.SerializedItemDescriptor,
-) map[string]*dynamodb.AttributeValue {
-	return map[string]*dynamodb.AttributeValue{
-		tablePartitionKey: {S: aws.String(store.namespaceForKind(kind))},
-		tableSortKey:      {S: aws.String(key)},
-		versionAttribute:  {N: aws.String(strconv.Itoa(item.Version))},
-		itemJSONAttribute: {S: aws.String(string(item.SerializedItem))},
+) map[string]types.AttributeValue {
+	return map[string]types.AttributeValue{
+		tablePartitionKey: attrValueOfString(store.namespaceForKind(kind)),
+		tableSortKey:      attrValueOfString(key),
+		versionAttribute:  attrValueOfInt(item.Version),
+		itemJSONAttribute: attrValueOfString(string(item.SerializedItem)),
 	}
 }
 
-func (store *dynamoDBDataStore) checkSizeLimit(item map[string]*dynamodb.AttributeValue) bool {
+func (store *dynamoDBDataStore) checkSizeLimit(item map[string]types.AttributeValue) bool {
 	// see: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/CapacityUnitCalculations.html
 	size := 100 // fixed overhead for index data
 	for key, value := range item {
-		size += len(key)
-		if value.S != nil {
-			size += len(*value.S) // note, len returns UTF8 byte length, which is what we want
-		} else if value.N != nil {
-			size += len(*value.N) // DynamoDB stores numbers as numeric strings
-		}
+		size += len(key) + len(attrValueToString(value))
 	}
 	if size <= dynamoDbMaxItemSize {
 		return true
 	}
 	store.loggers.Errorf("The item %q in %q was too large to store in DynamoDB and was dropped",
-		*item[tablePartitionKey].S, *item[tableSortKey].S)
+		attrValueToString(item[tablePartitionKey]), attrValueToString(item[tableSortKey]))
 	return false
 }

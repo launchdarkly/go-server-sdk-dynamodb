@@ -1,6 +1,7 @@
 package lddynamodb
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -8,8 +9,9 @@ import (
 	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
 	"github.com/launchdarkly/go-server-sdk/v6/testhelpers/storetest"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,17 +19,16 @@ func TestBigSegmentStore(t *testing.T) {
 	err := createTableIfNecessary()
 	require.NoError(t, err)
 
-	client, err := createTestClient()
-	require.NoError(t, err)
+	client := createTestClient()
 
 	setTestMetadata := func(prefix string, metadata subsystems.BigSegmentStoreMetadata) error {
 		key := prefixedNamespace(prefix, bigSegmentsMetadataKey)
-		item := map[string]*dynamodb.AttributeValue{
-			tablePartitionKey:       {S: aws.String(key)},
-			tableSortKey:            {S: aws.String(key)},
-			bigSegmentsSyncTimeAttr: {N: aws.String(strconv.Itoa(int(metadata.LastUpToDate)))},
+		item := map[string]types.AttributeValue{
+			tablePartitionKey:       attrValueOfString(key),
+			tableSortKey:            attrValueOfString(key),
+			bigSegmentsSyncTimeAttr: &types.AttributeValueMemberN{Value: strconv.FormatUint(uint64(metadata.LastUpToDate), 10)},
 		}
-		_, err := client.PutItem(&dynamodb.PutItemInput{
+		_, err := client.PutItem(context.Background(), &dynamodb.PutItemInput{
 			TableName: aws.String(testTableName),
 			Item:      item,
 		})
@@ -35,15 +36,15 @@ func TestBigSegmentStore(t *testing.T) {
 	}
 
 	addToSet := func(prefix, contextHashKey, attrName, value string) error {
-		_, err := client.UpdateItem(&dynamodb.UpdateItemInput{
+		_, err := client.UpdateItem(context.Background(), &dynamodb.UpdateItemInput{
 			TableName: aws.String(testTableName),
-			Key: map[string]*dynamodb.AttributeValue{
-				tablePartitionKey: {S: aws.String(prefixedNamespace(prefix, bigSegmentsUserDataKey))},
-				tableSortKey:      {S: aws.String(contextHashKey)},
+			Key: map[string]types.AttributeValue{
+				tablePartitionKey: attrValueOfString(prefixedNamespace(prefix, bigSegmentsUserDataKey)),
+				tableSortKey:      attrValueOfString(contextHashKey),
 			},
 			UpdateExpression: aws.String(fmt.Sprintf("ADD %s :value", attrName)),
-			ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-				":value": {SS: []*string{aws.String(value)}},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":value": &types.AttributeValueMemberSS{Value: []string{value}},
 			},
 		})
 		return err
