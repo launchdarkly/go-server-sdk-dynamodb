@@ -8,29 +8,38 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
-// DataStoreBuilder is a builder for configuring the DynamoDB-based persistent data store.
+// StoreBuilder is a builder for configuring the DynamoDB-based persistent data store and/or Big
+// Segment store.
 //
-// This can be used either for the main data store that holds feature flag data, or for the big
-// segment store, or both. If you are using both, they do not have to have the same parameters. For
-// instance, in this example the main data store uses the table "table1" and the big segment store
-// uses the table "table2":
+// Both [DataStore] and [BigSegmentStore] return instances of this type. You can use methods of the
+// builder to specify any ny non-default DynamoDB options you may want, before passing the builder to
+// either [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore] or
+// [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.BigSegments] as appropriate. The two types
+// of stores are independent of each other; you do not need a Big Segment store if you are not using
+// the Big Segments feature, and you do not need to use the same DynamoDB options for both.
 //
-//     config.DataStore = ldcomponents.PersistentDataStore(
-//         lddynamodb.DataStore("table1"))
-//     config.BigSegments = ldcomponents.BigSegments(
-//         lddynamodb.DataStore("table2"))
+// In this example, the main data store uses a DynamoDB table called "table1", and the Big Segment
+// store uses a DynamoDB table called "table2":
 //
-// Note that the builder is passed to one of two methods, PersistentDataStore or BigSegments,
-// depending on the context in which it is being used. This is because each of those contexts has
-// its own additional configuration options that are unrelated to the DynamoDB options.
+//	config.DataStore = ldcomponents.PersistentDataStore(
+//		lddynamodb.DataStore("table1"))
+//	config.BigSegments = ldcomponents.BigSegments(
+//		lddynamodb.BigSegmentStore("table2"))
 //
-// Builder calls can be chained, for example:
+// Note that the SDK also has its own options related to data storage that are configured
+// at a different level, because they are independent of what database is being used. For
+// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore]
+// has options for caching:
 //
-//     config.DataStore = lddynamodb.DataStore("tablename").SessionOptions(someOption).Prefix("prefix")
-//
-// You do not need to call the builder's CreatePersistentDataStore() method yourself to build the
-// actual data store; that will be done by the SDK.
-type DataStoreBuilder struct {
+//	config.DataStore = ldcomponents.PersistentDataStore(
+//		lddynamodb.DataStore("table1"),
+//	).CacheSeconds(15)
+type StoreBuilder[T any] struct {
+	builderOptions
+	factory func(*StoreBuilder[T], subsystems.ClientContext) (T, error)
+}
+
+type builderOptions struct {
 	client        *dynamodb.Client
 	table         string
 	prefix        string
@@ -41,15 +50,69 @@ type DataStoreBuilder struct {
 
 // DataStore returns a configurable builder for a DynamoDB-backed data store.
 //
+// This is for the main data store that holds feature flag data. To configure a data store for
+// Big Segments, use [BigSegmentStore] instead.
+//
 // The tableName parameter is required, and the table must already exist in DynamoDB.
-func DataStore(tableName string) *DataStoreBuilder {
-	return &DataStoreBuilder{
-		table: tableName,
+//
+// You can use methods of the builder to specify any non-default DynamoDB options you may want,
+// before passing the builder to [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore].
+// In this example, the store is configured to use a DynamoDB table called "table1" and the AWS
+// region is forced to be "us-east-1":
+//
+//	config.DataStore = ldcomponents.PersistentDataStore(
+//		lddynamodb.DataStore("table1").ClientOptions(dynamodb.Options{Region: "us-east-1"}),
+//	)
+//
+// Note that the SDK also has its own options related to data storage that are configured
+// at a different level, because they are independent of what database is being used. For
+// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore]
+// has options for caching:
+//
+//	config.DataStore = ldcomponents.PersistentDataStore(
+//		lddynamodb.DataStore("table1"),
+//	).CacheSeconds(15)
+func DataStore(tableName string) *StoreBuilder[subsystems.PersistentDataStore] {
+	return &StoreBuilder[subsystems.PersistentDataStore]{
+		builderOptions: builderOptions{
+			table: tableName,
+		},
+		factory: createPersistentDataStore,
+	}
+}
+
+// BigSegmentStore returns a configurable builder for a DynamoDB-backed Big Segment store.
+//
+// The tableName parameter is required, and the table must already exist in DynamoDB.
+//
+// You can use methods of the builder to specify any non-default Redis options you may want,
+// before passing the builder to [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.BigSegments].
+// In this example, the store is configured to use a DynamoDB table called "table1" and the AWS
+// region is forced to be "us-east-1":
+//
+//	config.BigSegments = ldcomponents.BigSegments(
+//		lddynamodb.BigSegmentStore("table1").ClientOptions(dynamodb.Options{Region: "us-east-1"}),
+//	)
+//
+// Note that the SDK also has its own options related to Big Segments that are configured
+// at a different level, because they are independent of what database is being used. For
+// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.BigSegments]
+// has an option for the status polling interval:
+//
+//	config.BigSegments = ldcomponents.BigSegments(
+//		lddynamodb.BigSegmentStore("table1"),
+//	).StatusPollInterval(time.Second * 30)
+func BigSegmentStore(tableName string) *StoreBuilder[subsystems.BigSegmentStore] {
+	return &StoreBuilder[subsystems.BigSegmentStore]{
+		builderOptions: builderOptions{
+			table: tableName,
+		},
+		factory: createBigSegmentStore,
 	}
 }
 
 // Prefix specifies a prefix for namespacing the data store's keys.
-func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
+func (b *StoreBuilder[T]) Prefix(prefix string) *StoreBuilder[T] {
 	b.prefix = prefix
 	return b
 }
@@ -57,14 +120,14 @@ func (b *DataStoreBuilder) Prefix(prefix string) *DataStoreBuilder {
 // DynamoClient specifies an existing DynamoDB client instance. Use this if you want to customize the client
 // used by the data store in ways that are not supported by other DataStoreBuilder options. If you
 // specify this option, then any configurations specified with SessionOptions or ClientConfig will be ignored.
-func (b *DataStoreBuilder) DynamoClient(client *dynamodb.Client) *DataStoreBuilder {
+func (b *StoreBuilder[T]) DynamoClient(client *dynamodb.Client) *StoreBuilder[T] {
 	b.client = client
 	return b
 }
 
 // ClientOptions specifies custom parameters for the dynamodb.NewFromConfig client constructor. This can be used
 // to set properties such as the region programmatically, rather than relying on the defaults from the environment.
-func (b *DataStoreBuilder) ClientConfig(options aws.Config, optFns ...func(*dynamodb.Options)) *DataStoreBuilder {
+func (b *StoreBuilder[T]) ClientConfig(options aws.Config, optFns ...func(*dynamodb.Options)) *StoreBuilder[T] {
 	b.awsConfig = &options
 	b.clientOptFns = optFns
 	return b
@@ -72,33 +135,33 @@ func (b *DataStoreBuilder) ClientConfig(options aws.Config, optFns ...func(*dyna
 
 // ClientOptions specifies custom parameters for the dynamodb.New client constructor. This can be used to set
 // properties such as the region programmatically, rather than relying on the defaults from the environment.
-func (b *DataStoreBuilder) ClientOptions(options dynamodb.Options, optFns ...func(*dynamodb.Options)) *DataStoreBuilder {
+func (b *StoreBuilder[T]) ClientOptions(options dynamodb.Options, optFns ...func(*dynamodb.Options)) *StoreBuilder[T] {
 	b.awsConfig = nil
 	b.clientOptions = &options
 	b.clientOptFns = optFns
 	return b
 }
 
-// CreatePersistentDataStore is called internally by the SDK to create a data store implementation object.
-func (b *DataStoreBuilder) CreatePersistentDataStore(
-	context subsystems.ClientContext,
-) (subsystems.PersistentDataStore, error) {
-	store, err := newDynamoDBDataStoreImpl(b, context.GetLogging().Loggers)
-	return store, err
-}
-
-// CreateBigSegmentStore is called internally by the SDK to create a data store implementation object.
-func (b *DataStoreBuilder) CreateBigSegmentStore(
-	context subsystems.ClientContext,
-) (subsystems.BigSegmentStore, error) {
-	store, err := newDynamoDBBigSegmentStoreImpl(b, context.GetLogging().Loggers)
-	if err != nil {
-		return nil, err
-	}
-	return store, err
+// Build is called internally by the SDK.
+func (b *StoreBuilder[T]) Build(context subsystems.ClientContext) (T, error) {
+	return b.factory(b, context)
 }
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
-func (b *DataStoreBuilder) DescribeConfiguration() ldvalue.Value {
+func (b *StoreBuilder[T]) DescribeConfiguration() ldvalue.Value {
 	return ldvalue.String("DynamoDB")
+}
+
+func createPersistentDataStore(
+	builder *StoreBuilder[subsystems.PersistentDataStore],
+	clientContext subsystems.ClientContext,
+) (subsystems.PersistentDataStore, error) {
+	return newDynamoDBDataStoreImpl(builder.builderOptions, clientContext.GetLogging().Loggers)
+}
+
+func createBigSegmentStore(
+	builder *StoreBuilder[subsystems.BigSegmentStore],
+	clientContext subsystems.ClientContext,
+) (subsystems.BigSegmentStore, error) {
+	return newDynamoDBBigSegmentStoreImpl(builder.builderOptions, clientContext.GetLogging().Loggers)
 }
