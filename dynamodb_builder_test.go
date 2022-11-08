@@ -64,11 +64,11 @@ func TestDataSourceBuilder(t *testing.T) {
 	})
 
 	t.Run("error for empty table name", func(t *testing.T) {
-		ds, err := DataStore("").CreatePersistentDataStore(subsystems.BasicClientContext{})
+		ds, err := DataStore("").Build(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
-		bs, err := DataStore("").CreateBigSegmentStore(subsystems.BasicClientContext{})
+		bs, err := BigSegmentStore("").Build(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})
@@ -77,11 +77,11 @@ func TestDataSourceBuilder(t *testing.T) {
 		os.Setenv("AWS_CA_BUNDLE", "not a real CA file")
 		defer os.Setenv("AWS_CA_BUNDLE", "")
 
-		ds, err := DataStore("t").CreatePersistentDataStore(subsystems.BasicClientContext{})
+		ds, err := DataStore("t").Build(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, ds)
 
-		bs, err := DataStore("t").CreateBigSegmentStore(subsystems.BasicClientContext{})
+		bs, err := BigSegmentStore("t").Build(subsystems.BasicClientContext{})
 		assert.Error(t, err)
 		assert.Nil(t, bs)
 	})

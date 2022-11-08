@@ -80,7 +80,7 @@ func batchWriteRequests(
 	return nil
 }
 
-func makeClientAndContext(builder *DataStoreBuilder) (*dynamodb.Client, context.Context, context.CancelFunc, error) {
+func makeClientAndContext(builder builderOptions) (*dynamodb.Client, context.Context, context.CancelFunc, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	client := builder.client
 	if client == nil {

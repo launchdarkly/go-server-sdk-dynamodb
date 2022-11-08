@@ -33,7 +33,7 @@ type dynamoDBBigSegmentStoreImpl struct {
 }
 
 func newDynamoDBBigSegmentStoreImpl(
-	builder *DataStoreBuilder,
+	builder builderOptions,
 	loggers ldlog.Loggers,
 ) (*dynamoDBBigSegmentStoreImpl, error) {
 	if builder.table == "" {

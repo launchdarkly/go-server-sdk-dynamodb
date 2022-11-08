@@ -64,11 +64,15 @@ func TestBigSegmentStore(t *testing.T) {
 	}
 
 	storetest.NewBigSegmentStoreTestSuite(
-		func(prefix string) subsystems.BigSegmentStoreFactory {
-			return baseBuilder().Prefix(prefix)
+		func(prefix string) subsystems.ComponentConfigurer[subsystems.BigSegmentStore] {
+			return baseBigSegmentStoreBuilder().Prefix(prefix)
 		},
 		clearTestData,
 		setTestMetadata,
 		setTestSegments,
 	).Run(t)
+}
+
+func baseBigSegmentStoreBuilder() *StoreBuilder[subsystems.BigSegmentStore] {
+	return BigSegmentStore(testTableName).ClientOptions(makeTestOptions())
 }

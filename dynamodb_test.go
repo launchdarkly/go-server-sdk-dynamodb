@@ -131,7 +131,7 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 				mockLog := ldlogtest.NewMockLog()
 				ctx := subsystems.BasicClientContext{}
 				ctx.Logging.Loggers = mockLog.Loggers
-				store, err := makeTestStore("").CreatePersistentDataStore(ctx)
+				store, err := makeTestStore("").Build(ctx)
 				require.NoError(t, err)
 				defer store.Close()
 
@@ -161,7 +161,7 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 				mockLog := ldlogtest.NewMockLog()
 				ctx := subsystems.BasicClientContext{}
 				ctx.Logging.Loggers = mockLog.Loggers
-				store, err := makeTestStore("").CreatePersistentDataStore(ctx)
+				store, err := makeTestStore("").Build(ctx)
 				require.NoError(t, err)
 				defer store.Close()
 
@@ -179,15 +179,15 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 	})
 }
 
-func baseBuilder() *DataStoreBuilder {
+func baseDataStoreBuilder() *StoreBuilder[subsystems.PersistentDataStore] {
 	return DataStore(testTableName).ClientOptions(makeTestOptions())
 }
 
-func makeTestStore(prefix string) subsystems.PersistentDataStoreFactory {
-	return baseBuilder().Prefix(prefix)
+func makeTestStore(prefix string) subsystems.ComponentConfigurer[subsystems.PersistentDataStore] {
+	return baseDataStoreBuilder().Prefix(prefix)
 }
 
-func makeFailedStore() subsystems.PersistentDataStoreFactory {
+func makeFailedStore() subsystems.ComponentConfigurer[subsystems.PersistentDataStore] {
 	// Here we ensure that all DynamoDB operations will fail by simply *not* using makeTestOptions(),
 	// so that the client does not have the necessary region parameter.
 	return DataStore(testTableName)
