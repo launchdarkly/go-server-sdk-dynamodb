@@ -72,7 +72,8 @@ func (store *dynamoDBBigSegmentStoreImpl) GetMetadata() (subsystems.BigSegmentSt
 		return subsystems.BigSegmentStoreMetadata{}, err // COVERAGE: can't cause this in unit tests
 	}
 	if len(result.Item) == 0 {
-		return subsystems.BigSegmentStoreMetadata{}, errors.New("timestamp not found")
+		// this is just a "not found" result, not a database error
+		return subsystems.BigSegmentStoreMetadata{}, nil
 	}
 
 	value := attrValueToUint64(result.Item[bigSegmentsSyncTimeAttr])
