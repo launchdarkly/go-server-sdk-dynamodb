@@ -10,6 +10,7 @@ jobs:
 
 branches:
   - name: main
+  - name: 2.x
   - name: v1
 
 publications:
