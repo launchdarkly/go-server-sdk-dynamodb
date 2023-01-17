@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.16.4
 	github.com/launchdarkly/go-test-helpers/v2 v2.3.1
 	github.com/stretchr/testify v1.6.1
-	gopkg.in/launchdarkly/go-sdk-common.v2 v2.4.0
+	gopkg.in/launchdarkly/go-sdk-common.v2 v2.5.1
 	gopkg.in/launchdarkly/go-server-sdk-evaluation.v1 v1.5.0
-	gopkg.in/launchdarkly/go-server-sdk.v5 v5.5.0
+	gopkg.in/launchdarkly/go-server-sdk.v5 v5.10.1
 )
