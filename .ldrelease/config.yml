@@ -14,5 +14,5 @@ branches:
   - name: v1
 
 publications:
-  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v3
+  - url: https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v4
     description: documentation

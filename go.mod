@@ -1,4 +1,4 @@
-module github.com/launchdarkly/go-server-sdk-dynamodb/v3
+module github.com/launchdarkly/go-server-sdk-dynamodb/v4
 
 go 1.18
 
