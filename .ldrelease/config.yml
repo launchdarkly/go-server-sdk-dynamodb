@@ -9,6 +9,7 @@ jobs:
         - test  # CI tests require a database
 
 branches:
+  - name: v4
   - name: main
   - name: 2.x
   - name: v1

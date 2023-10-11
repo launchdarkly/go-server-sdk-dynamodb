@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.17.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.18
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.16.4
-	github.com/launchdarkly/go-sdk-common/v3 v3.0.1
+	github.com/launchdarkly/go-sdk-common/v3 v3.1.0
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.0.0
 	github.com/launchdarkly/go-test-helpers/v2 v2.3.2
@@ -44,11 +44,3 @@ require (
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	gopkg.in/yaml.v3 v3.0.0 // indirect
 )
-
-replace github.com/launchdarkly/go-sdk-common/v3 => github.com/launchdarkly/go-sdk-common-private/v3 v3.0.0-alpha.6.0.20230829225529-e3a87e3952ac
-
-replace github.com/launchdarkly/go-server-sdk/v7 => github.com/launchdarkly/go-server-sdk-private/v7 v7.0.0-20230831202925-f824718cfcca
-
-replace github.com/launchdarkly/go-server-sdk-evaluation/v3 => github.com/launchdarkly/go-server-sdk-evaluation-private/v3 v3.0.0-20230829233102-4fc0fa5a3369
-
-replace github.com/launchdarkly/go-sdk-events/v3 => github.com/launchdarkly/go-sdk-events-private/v3 v3.0.0-20230829233031-ed3dc538caac
