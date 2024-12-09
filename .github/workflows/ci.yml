@@ -40,13 +40,13 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-      - name: setup DynamoDB
+      - name: Setup DynamoDB
         run: |
-          $ProgressPreference = "SilentlyContinue"  # prevents console errors from CircleCI host when we use iwr
+          $ProgressPreference = "SilentlyContinue"
           iwr -outf dynamo.zip https://s3-us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.zip
           mkdir dynamo
           Expand-Archive -Path dynamo.zip -DestinationPath dynamo
           cd dynamo
-          javaw -D"java.library.path=./DynamoDBLocal_lib" -jar DynamoDBLocal.jar
+          cmd /c "START /b java -Djava.library.path=./DynamoDBLocal_lib -jar ./DynamoDBLocal.jar"
       - name: Test
         run: go test -race ./...
