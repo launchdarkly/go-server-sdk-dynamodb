@@ -76,7 +76,7 @@ func TestDataSourceBuilder(t *testing.T) {
 
 	t.Run("error for invalid configuration", func(t *testing.T) {
 		require.NoError(t, os.Setenv("AWS_CA_BUNDLE", "not a real CA file"))
-		defer func() { require.NoError(t, os.Setenv("AWS_CA_BUNDLE", "")) }()
+		t.Cleanup(func() { _ = os.Setenv("AWS_CA_BUNDLE", "") })
 
 		ds, err := DataStore("t").Build(subsystems.BasicClientContext{})
 		assert.Error(t, err)
