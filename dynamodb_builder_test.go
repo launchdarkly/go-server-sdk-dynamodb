@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataSourceBuilder(t *testing.T) {
@@ -74,8 +75,8 @@ func TestDataSourceBuilder(t *testing.T) {
 	})
 
 	t.Run("error for invalid configuration", func(t *testing.T) {
-		os.Setenv("AWS_CA_BUNDLE", "not a real CA file")
-		defer os.Setenv("AWS_CA_BUNDLE", "")
+		require.NoError(t, os.Setenv("AWS_CA_BUNDLE", "not a real CA file"))
+		t.Cleanup(func() { _ = os.Setenv("AWS_CA_BUNDLE", "") })
 
 		ds, err := DataStore("t").Build(subsystems.BasicClientContext{})
 		assert.Error(t, err)

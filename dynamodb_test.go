@@ -133,7 +133,7 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 				ctx.Logging.Loggers = mockLog.Loggers
 				store, err := makeTestStore("").Build(ctx)
 				require.NoError(t, err)
-				defer store.Close()
+				defer store.Close() //nolint:errcheck // test cleanup
 
 				dataPlusBadItem := makeGoodData()
 				collection := dataPlusBadItem[params.collIndex]
@@ -163,7 +163,7 @@ func TestDataStoreSkipsAndLogsTooLargeItem(t *testing.T) {
 				ctx.Logging.Loggers = mockLog.Loggers
 				store, err := makeTestStore("").Build(ctx)
 				require.NoError(t, err)
-				defer store.Close()
+				defer store.Close() //nolint:errcheck // test cleanup
 
 				goodData := makeGoodData()
 				require.NoError(t, store.Init(goodData))
