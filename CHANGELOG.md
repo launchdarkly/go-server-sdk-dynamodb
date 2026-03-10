@@ -2,6 +2,10 @@
 
 All notable changes to the LaunchDarkly Go SDK DynamoDB integration will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.0.0] - 2023-10-11
+### Added:
+- Added support for SDK v7 to support technology migrations.
+
 ## [3.0.2] - 2023-01-17
 ### Fixed:
 - When using Big Segments, do not log a database error if the Big Segments status data has not yet been populated.

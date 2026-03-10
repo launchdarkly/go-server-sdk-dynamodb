@@ -1,6 +1,7 @@
 # LaunchDarkly Server-side SDK for Go - Dynamodb integration
 
-[![Circle CI](https://circleci.com/gh/launchdarkly/go-server-sdk-dynamodb.svg?style=shield)](https://circleci.com/gh/launchdarkly/go-server-sdk-dynamodb) [![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v3)
+[![Actions Status](https://github.com/launchdarkly/go-server-sdk-dynamodb/actions/workflows/ci.yml/badge.svg?branch=v4)](https://github.com/launchdarkly/go-server-sdk-dynamodb/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/static/v1?label=go.dev&message=reference&color=00add8)](https://pkg.go.dev/github.com/launchdarkly/go-server-sdk-dynamodb/v4)
 
 This library provides a [DynamoDB](https://aws.amazon.com/dynamodb/)-backed persistence mechanism (data store) for the [LaunchDarkly Go SDK](https://github.com/launchdarkly/go-server-sdk), replacing the default in-memory data store.
 
@@ -20,9 +21,9 @@ This assumes that you have already installed the LaunchDarkly Go SDK.
 
 ```go
 import (
-    ld "github.com/launchdarkly/go-server-sdk/v6"
-    "github.com/launchdarkly/go-server-sdk/v6/ldcomponents"
-    lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb/v3"
+    ld "github.com/launchdarkly/go-server-sdk/v7"
+    "github.com/launchdarkly/go-server-sdk/v7/ldcomponents"
+    lddynamodb "github.com/launchdarkly/go-server-sdk-dynamodb/v4"
 )
 ```
 

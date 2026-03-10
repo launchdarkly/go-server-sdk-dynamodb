@@ -2,7 +2,7 @@ package lddynamodb
 
 import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
-	"github.com/launchdarkly/go-server-sdk/v6/subsystems"
+	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -13,8 +13,8 @@ import (
 //
 // Both [DataStore] and [BigSegmentStore] return instances of this type. You can use methods of the
 // builder to specify any ny non-default DynamoDB options you may want, before passing the builder to
-// either [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore] or
-// [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.BigSegments] as appropriate. The two types
+// either [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.PersistentDataStore] or
+// [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.BigSegments] as appropriate. The two types
 // of stores are independent of each other; you do not need a Big Segment store if you are not using
 // the Big Segments feature, and you do not need to use the same DynamoDB options for both.
 //
@@ -28,7 +28,7 @@ import (
 //
 // Note that the SDK also has its own options related to data storage that are configured
 // at a different level, because they are independent of what database is being used. For
-// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore]
+// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.PersistentDataStore]
 // has options for caching:
 //
 //	config.DataStore = ldcomponents.PersistentDataStore(
@@ -56,7 +56,7 @@ type builderOptions struct {
 // The tableName parameter is required, and the table must already exist in DynamoDB.
 //
 // You can use methods of the builder to specify any non-default DynamoDB options you may want,
-// before passing the builder to [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore].
+// before passing the builder to [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.PersistentDataStore].
 // In this example, the store is configured to use a DynamoDB table called "table1" and the AWS
 // region is forced to be "us-east-1":
 //
@@ -66,7 +66,7 @@ type builderOptions struct {
 //
 // Note that the SDK also has its own options related to data storage that are configured
 // at a different level, because they are independent of what database is being used. For
-// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.PersistentDataStore]
+// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.PersistentDataStore]
 // has options for caching:
 //
 //	config.DataStore = ldcomponents.PersistentDataStore(
@@ -86,7 +86,7 @@ func DataStore(tableName string) *StoreBuilder[subsystems.PersistentDataStore] {
 // The tableName parameter is required, and the table must already exist in DynamoDB.
 //
 // You can use methods of the builder to specify any non-default Redis options you may want,
-// before passing the builder to [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.BigSegments].
+// before passing the builder to [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.BigSegments].
 // In this example, the store is configured to use a DynamoDB table called "table1" and the AWS
 // region is forced to be "us-east-1":
 //
@@ -96,7 +96,7 @@ func DataStore(tableName string) *StoreBuilder[subsystems.PersistentDataStore] {
 //
 // Note that the SDK also has its own options related to Big Segments that are configured
 // at a different level, because they are independent of what database is being used. For
-// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v6/ldcomponents.BigSegments]
+// instance, the builder returned by [github.com/launchdarkly/go-server-sdk/v7/ldcomponents.BigSegments]
 // has an option for the status polling interval:
 //
 //	config.BigSegments = ldcomponents.BigSegments(
