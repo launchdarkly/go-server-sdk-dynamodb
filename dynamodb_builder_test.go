@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
+	"github.com/launchdarkly/go-sdk-common/v4/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7/subsystems"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
