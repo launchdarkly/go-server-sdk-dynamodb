@@ -2,6 +2,13 @@
 
 All notable changes to the LaunchDarkly Go SDK DynamoDB integration will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [4.0.3](https://github.com/launchdarkly/go-server-sdk-dynamodb/compare/v4.0.2...v4.0.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* **deps:** revert v4 core libraries to v3 ([#39](https://github.com/launchdarkly/go-server-sdk-dynamodb/issues/39)) ([726a52e](https://github.com/launchdarkly/go-server-sdk-dynamodb/commit/726a52ea0d52c1afa86a05835a80f97e20280824))
+
 ## [4.0.2](https://github.com/launchdarkly/go-server-sdk-dynamodb/compare/v4.0.1...v4.0.2) (2026-06-03)
 
 
