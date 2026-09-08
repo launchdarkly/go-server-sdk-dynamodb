@@ -149,6 +149,11 @@ func (b *StoreBuilder[T]) Build(context subsystems.ClientContext) (T, error) {
 
 // DescribeConfiguration is used internally by the SDK to inspect the configuration.
 func (b *StoreBuilder[T]) DescribeConfiguration() ldvalue.Value {
+	// MAINTAINERS: the no-argument form of this method is deprecated. The SDK interface
+	// subsystems.DiagnosticDescription requires a subsystems.ClientContext parameter, and the SDK
+	// reaches this method through a type assertion on that interface. The SDK accepts the
+	// no-argument form for backward compatibility, so diagnostics report the store type either way.
+	// Change this method to take a subsystems.ClientContext in the next major version. See SDK-2925.
 	return ldvalue.String("DynamoDB")
 }
 
