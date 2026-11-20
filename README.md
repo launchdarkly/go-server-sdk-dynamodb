@@ -9,7 +9,7 @@ This version of the library requires at least version 6.0.0 of the LaunchDarkly 
 
 This version of the library uses the [v2 AWS Go SDK](https://github.com/aws/aws-sdk-go-v2).
 
-While this library requires Go 1.18 or later, you should use the latest patched version of a supported Go release.
+While this library requires Go 1.24 or later, you should use the latest patched version of a supported Go release.
 
 For more information, see also: [Using DynamoDB as a persistent feature store](https://docs.launchdarkly.com/sdk/features/storing-data/dynamodb#go).
 
